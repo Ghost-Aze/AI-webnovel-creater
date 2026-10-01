@@ -15,7 +15,8 @@ current Phase 1 implementation.
 - Phase 3 establishes provider-independent capability contracts, runtime model profiles, an in-memory registry and a deterministic structured-memory Context Compiler. It does not connect a provider.
 - Phase 4 establishes one OpenAI-compatible HTTP adapter, an injected transport boundary, SSE streaming parsing and a typed provider-generate command. It does not persist credentials or add provider settings UI.
 - Phase 5 establishes a process-memory provider runtime and credential-store abstraction. It supports configure/remove lifecycle commands without persisting secrets.
-- Phase 6 establishes the typed provider setup route and explicit credential-store status boundary. The cloud/headless runtime uses session-only ephemeral storage; native secure-store adapters remain target-specific follow-up work.
+- Phase 6 establishes the typed provider setup route and explicit credential-store status boundary. The cloud/headless runtime uses session-only ephemeral storage.
+- Phase 7 supplies target-specific Windows Credential Manager and Android Keystore-backed adapters. Native targets select those adapters at startup; unsupported and headless targets remain explicit and never fall back to plaintext storage. Provider descriptors and model profiles are still process-local until a later persistence phase.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -67,7 +68,8 @@ current Phase 1 implementation.
 - A missing provider capability or retrieval service results in a visible degraded path, not an implicit change to canonical state.
 - `provider_generate` resolves a model through `ProviderRegistry` and calls the async provider contract. The registry remains empty at startup until a later secure-credential setup registers an adapter.
 - `ProviderRuntime` owns the shared registry and a `CredentialStore`. Phase 5's `EphemeralCredentialStore` is intentionally cleared on restart and is only a bridge to platform backends. Configure failures roll back the credential and registry mapping; remove deletes both runtime entries.
-- Phase 6 exposes `CredentialStoreKind` and `provider_credential_status` without returning secrets. The provider settings form uses typed configure/remove commands, validates model budget metadata locally, and clears the API-key input after a successful submission. `PlatformSecure` reports an explicit unavailable result until Windows Credential Manager and Android Keystore adapters are implemented; no plaintext fallback is allowed.
+- Phase 6 exposes `CredentialStoreKind` and `provider_credential_status` without returning secrets. The provider settings form uses typed configure/remove commands, validates model budget metadata locally, and clears the API-key input after a successful submission.
+- Phase 7's `PlatformSecureCredentialStore` delegates to Windows Credential Manager or the Android-native Keystore-backed store behind a target-specific Rust boundary. Initialization and platform failures are normalized to typed availability/errors; missing entries map to `credential_not_found`, and no raw keyring detail or plaintext fallback is exposed.
 
 ## Manuscript and chat
 

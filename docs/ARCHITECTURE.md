@@ -138,10 +138,30 @@ required fields, submits one typed model profile, clears the API-key field
 after success and renders provider descriptors without secrets. Model routing
 and orchestration remain later phases.
 
+## Phase 7 native secure credentials
+
+`PlatformSecureCredentialStore` now delegates to target-specific adapters. On
+Windows it initializes Windows Credential Manager; on Android it initializes
+the Android-native keyring store, which encrypts SharedPreferences data with
+the Android Keystore. The adapter uses the opaque credential ID as the store
+username and keeps the application service namespace internal to Rust. Native
+initialization is lazy and the status command reports only typed availability.
+
+Unsupported and headless targets keep the unavailable platform implementation
+or select `Ephemeral` through the application-store factory. No target falls
+back to SQLite, a plaintext file, or an environment variable. Platform errors
+are normalized to `secure_store_unavailable`, while a missing entry maps to
+`credential_not_found` without exposing keyring error text.
+
+The Tauri startup path selects native secure storage on Windows and Android and
+the deterministic process-only store elsewhere. Provider descriptors and model
+profiles are still process-local; persisting and restoring that metadata is a
+later phase, independent of the native secret storage boundary.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary; native secure-store adapters, model routing, orchestration, manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters; model routing, orchestration, manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.

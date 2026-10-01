@@ -8,9 +8,6 @@ pub mod projects;
 pub mod provider;
 pub mod revisions;
 
-#[cfg(feature = "tauri-app")]
-use std::sync::Arc;
-
 #[derive(Clone)]
 pub struct AppState {
     pub character_service: characters::service::CharacterService,
@@ -58,7 +55,7 @@ pub fn run() {
             let context_source =
                 context::ServiceContextSource::new(service.clone(), character_service.clone());
             let provider_runtime =
-                provider::ProviderRuntime::new(Arc::new(provider::EphemeralCredentialStore::new()));
+                provider::ProviderRuntime::new(provider::application_credential_store());
             let provider_registry = provider_runtime.registry();
             app.manage(AppState {
                 character_service,

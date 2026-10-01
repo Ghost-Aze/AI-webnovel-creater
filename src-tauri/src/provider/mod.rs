@@ -10,8 +10,9 @@ pub use http::OpenAiCompatibleProvider;
 pub use mock::MockProvider;
 pub use registry::{ProviderRegistry, ResolvedModel};
 pub use runtime::{
-    credential_store_for, CredentialId, CredentialStore, CredentialStoreKind,
-    CredentialStoreStatus, EphemeralCredentialStore, PlatformSecureCredentialStore,
-    ProviderConfigureInput, ProviderConfigureResult, ProviderRuntime, SecretValue,
+    application_credential_store, credential_store_for, CredentialId, CredentialStore,
+    CredentialStoreKind, CredentialStoreStatus, EphemeralCredentialStore,
+    PlatformSecureCredentialStore, ProviderConfigureInput, ProviderConfigureResult,
+    ProviderRuntime, SecretValue,
 };
 pub use types::*;

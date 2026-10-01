@@ -11,6 +11,8 @@ use super::{
     ProviderResult,
 };
 
+mod secure_store;
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CredentialId(String);
 
@@ -21,6 +23,11 @@ impl CredentialId {
             return Err(ProviderError::InvalidRequest);
         }
         Ok(Self(value))
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -58,6 +65,9 @@ impl fmt::Debug for SecretValue {
 
 pub trait CredentialStore: Send + Sync {
     fn kind(&self) -> CredentialStoreKind;
+    fn status(&self) -> CredentialStoreStatus {
+        CredentialStoreStatus::for_kind(self.kind())
+    }
     fn put(&self, id: &CredentialId, value: SecretValue) -> ProviderResult<()>;
     fn get(&self, id: &CredentialId) -> ProviderResult<SecretValue>;
     fn delete(&self, id: &CredentialId) -> ProviderResult<()>;
@@ -83,6 +93,14 @@ impl CredentialStoreStatus {
             available: matches!(kind, CredentialStoreKind::Ephemeral),
             persistent: matches!(kind, CredentialStoreKind::PlatformSecure),
             kind,
+        }
+    }
+
+    pub(crate) fn platform_secure(available: bool) -> Self {
+        Self {
+            kind: CredentialStoreKind::PlatformSecure,
+            persistent: true,
+            available,
         }
     }
 }
@@ -133,34 +151,28 @@ impl CredentialStore for EphemeralCredentialStore {
     }
 }
 
-/// Native Windows Credential Manager and Android Keystore adapters implement
-/// this boundary in their platform builds. Keeping the unavailable behavior
-/// typed prevents a silent plaintext fallback while those adapters are absent.
-#[derive(Clone, Default)]
-pub struct PlatformSecureCredentialStore;
-
-impl CredentialStore for PlatformSecureCredentialStore {
-    fn kind(&self) -> CredentialStoreKind {
-        CredentialStoreKind::PlatformSecure
-    }
-
-    fn put(&self, _id: &CredentialId, _value: SecretValue) -> ProviderResult<()> {
-        Err(ProviderError::SecureStoreUnavailable)
-    }
-
-    fn get(&self, _id: &CredentialId) -> ProviderResult<SecretValue> {
-        Err(ProviderError::SecureStoreUnavailable)
-    }
-
-    fn delete(&self, _id: &CredentialId) -> ProviderResult<()> {
-        Err(ProviderError::SecureStoreUnavailable)
-    }
-}
+pub use secure_store::PlatformSecureCredentialStore;
 
 pub fn credential_store_for(kind: CredentialStoreKind) -> Arc<dyn CredentialStore> {
     match kind {
         CredentialStoreKind::Ephemeral => Arc::new(EphemeralCredentialStore::new()),
-        CredentialStoreKind::PlatformSecure => Arc::new(PlatformSecureCredentialStore),
+        CredentialStoreKind::PlatformSecure => Arc::new(PlatformSecureCredentialStore::new()),
+    }
+}
+
+/// Select the store that is safe for the current application target.
+///
+/// Native targets get persistent OS-backed storage. Headless, Linux-cloud and
+/// other unsupported targets deliberately use the process-only store so they
+/// remain deterministic without ever writing a plaintext fallback.
+pub fn application_credential_store() -> Arc<dyn CredentialStore> {
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    {
+        Arc::new(PlatformSecureCredentialStore::new())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
+    {
+        Arc::new(EphemeralCredentialStore::new())
     }
 }
 
@@ -215,7 +227,7 @@ impl ProviderRuntime {
     }
 
     pub fn credential_store_status(&self) -> CredentialStoreStatus {
-        CredentialStoreStatus::for_kind(self.credentials.kind())
+        self.credentials.status()
     }
 
     pub fn configure(
@@ -378,6 +390,7 @@ mod tests {
         assert_eq!(SecretValue::new("   "), Err(ProviderError::InvalidRequest));
     }
 
+    #[cfg(not(any(target_os = "windows", target_os = "android")))]
     #[test]
     fn exposes_explicit_credential_store_modes_without_plaintext_fallback() {
         let ephemeral = credential_store_for(CredentialStoreKind::Ephemeral);
@@ -403,13 +416,67 @@ mod tests {
             Err(ProviderError::SecureStoreUnavailable)
         );
         assert_eq!(
-            CredentialStoreStatus::for_kind(platform.kind()),
+            platform.status(),
             CredentialStoreStatus {
                 available: false,
                 kind: CredentialStoreKind::PlatformSecure,
                 persistent: true,
             }
         );
+    }
+
+    #[derive(Clone)]
+    struct ReportingCredentialStore;
+
+    impl CredentialStore for ReportingCredentialStore {
+        fn kind(&self) -> CredentialStoreKind {
+            CredentialStoreKind::PlatformSecure
+        }
+
+        fn status(&self) -> CredentialStoreStatus {
+            CredentialStoreStatus::platform_secure(true)
+        }
+
+        fn put(&self, _id: &CredentialId, _value: SecretValue) -> ProviderResult<()> {
+            Ok(())
+        }
+
+        fn get(&self, _id: &CredentialId) -> ProviderResult<SecretValue> {
+            Err(ProviderError::CredentialNotFound)
+        }
+
+        fn delete(&self, _id: &CredentialId) -> ProviderResult<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn runtime_delegates_store_availability() {
+        let runtime = ProviderRuntime::new(Arc::new(ReportingCredentialStore));
+        assert_eq!(
+            runtime.credential_store_status(),
+            CredentialStoreStatus {
+                kind: CredentialStoreKind::PlatformSecure,
+                persistent: true,
+                available: true,
+            }
+        );
+    }
+
+    #[test]
+    fn application_store_is_ephemeral_on_headless_targets() {
+        let store = application_credential_store();
+        #[cfg(not(any(target_os = "windows", target_os = "android")))]
+        assert_eq!(
+            store.status(),
+            CredentialStoreStatus {
+                kind: CredentialStoreKind::Ephemeral,
+                persistent: false,
+                available: true,
+            }
+        );
+        #[cfg(any(target_os = "windows", target_os = "android"))]
+        assert_eq!(store.kind(), CredentialStoreKind::PlatformSecure);
     }
 
     #[test]

@@ -81,6 +81,20 @@ describe("ProviderSettingsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows persistent platform storage when the native adapter is available", async () => {
+    getCredentialStoreStatusMock.mockResolvedValueOnce({
+      kind: "platform_secure",
+      persistent: true,
+      available: true,
+    });
+    renderProviders();
+
+    expect(await screen.findByTestId("empty-providers")).toBeInTheDocument();
+    expect(
+      screen.getByText("Credentials use platform secure storage."),
+    ).toBeInTheDocument();
+  });
+
   it("validates required fields before calling configure", async () => {
     const user = userEvent.setup();
     renderProviders();
