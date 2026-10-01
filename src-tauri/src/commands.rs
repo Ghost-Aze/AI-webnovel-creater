@@ -11,7 +11,9 @@ use crate::{
         ProposalStatus,
     },
     error::AppResult,
-    provider::{ModelProfile, ProviderDescriptor, ProviderRegistry},
+    provider::{
+        GenerateRequest, GenerateResponse, ModelProfile, ProviderDescriptor, ProviderRegistry,
+    },
     revisions::service::ProposalService,
     revisions::service::RevisionService,
 };
@@ -239,6 +241,21 @@ pub fn compile_context(
     )
 }
 
+pub async fn generate(
+    registry: &ProviderRegistry,
+    request: GenerateRequest,
+) -> AppResult<GenerateResponse> {
+    let resolved = registry.resolve(&request.model.provider_id, &request.model.model_id)?;
+    report(
+        "provider_generate",
+        resolved
+            .provider
+            .generate(request)
+            .await
+            .map_err(Into::into),
+    )
+}
+
 fn report<T>(command: &'static str, result: AppResult<T>) -> AppResult<T> {
     match &result {
         Ok(_) => tracing::debug!(command, "project command completed"),
@@ -455,6 +472,14 @@ mod tauri_commands {
             request,
         )
     }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub async fn provider_generate(
+        state: State<'_, AppState>,
+        request: GenerateRequest,
+    ) -> AppResult<GenerateResponse> {
+        generate(&state.provider_registry, request).await
+    }
 }
 
 #[cfg(feature = "tauri-app")]
@@ -462,6 +487,10 @@ pub use tauri_commands::*;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use futures::executor::block_on;
+
     use super::*;
     use crate::{
         context::{ContextBudget, ContextTask},
@@ -472,7 +501,10 @@ mod tests {
         },
         error::AppError,
         projects::{repository::ProjectRepository, service::ProjectService},
-        provider::{ModelRef, ProviderRegistry},
+        provider::{
+            GenerateRequest, MockProvider, ModelProfile, ModelRef, PromptMessage, PromptRole,
+            ProviderCapabilities, ProviderDescriptor, ProviderRegistry,
+        },
         revisions::{repository::RevisionRepository, service::RevisionService},
     };
 
@@ -591,6 +623,47 @@ mod tests {
             compile_context(&registry, &ContextCompiler::default(), &source, request),
             Err(AppError::ProviderNotFound)
         );
+    }
+
+    #[test]
+    fn provider_generate_helper_resolves_registry_and_returns_typed_response() {
+        let registry = ProviderRegistry::new();
+        registry
+            .register(Arc::new(MockProvider::new(
+                ProviderDescriptor {
+                    id: "mock".into(),
+                    display_name: "Mock".into(),
+                },
+                vec![ModelProfile {
+                    provider_id: "mock".into(),
+                    model_id: "writer".into(),
+                    display_name: "Writer".into(),
+                    context_window_tokens: 4096,
+                    default_output_tokens: 512,
+                    strengths: Vec::new(),
+                    weaknesses: Vec::new(),
+                    strategy: Vec::new(),
+                    capabilities: ProviderCapabilities::default(),
+                }],
+            )))
+            .unwrap();
+        let response = block_on(generate(
+            &registry,
+            GenerateRequest {
+                model: ModelRef {
+                    provider_id: "mock".into(),
+                    model_id: "writer".into(),
+                },
+                messages: vec![PromptMessage {
+                    role: PromptRole::User,
+                    content: "Hello".into(),
+                }],
+                max_output_tokens: 32,
+                temperature: None,
+            },
+        ))
+        .unwrap();
+        assert_eq!(response.text, "mock response: Hello");
     }
 
     #[test]

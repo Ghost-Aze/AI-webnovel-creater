@@ -84,10 +84,31 @@ and `types/context.ts`; no provider SDK or SQL access enters the client. Future
 orchestration, semantic retrieval, credentials and provider adapters must use
 these boundaries and remain separate phases.
 
+## Phase 4 provider execution
+
+`src-tauri/src/provider/http.rs` implements the first production adapter:
+`OpenAiCompatibleProvider` maps the provider-independent generate contract to
+an OpenAI-compatible `/chat/completions` endpoint. `ReqwestTransport` owns
+network I/O, while an injected `HttpTransport` keeps request/response and SSE
+tests deterministic. Request validation happens before transport execution;
+non-success HTTP responses, malformed JSON and malformed SSE map to the safe
+`provider_failure` result without exposing response bodies or prompts.
+
+Streaming responses are parsed as chunk-safe `data:` events. Content deltas
+become typed `StreamEvent` values and `data: [DONE]` becomes the single typed
+completion event. The bearer credential is an in-memory adapter input and is
+not serializable, logged, stored in SQLite or included in sync.
+
+The typed `provider_generate` command resolves the requested model through the
+runtime registry and awaits `AIProvider::generate`. The application registry
+is intentionally empty at startup until the later secure credential and
+provider setup phase registers a configured adapter. React exposes the same
+boundary through `generateProvider`; it does not know the HTTP wire format.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation, while real provider adapters, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary, while credential setup, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice. New memory entities must remain structured and provider-independent.

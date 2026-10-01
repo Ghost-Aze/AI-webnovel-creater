@@ -13,6 +13,7 @@ current Phase 1 implementation.
 - Phase 0 establishes the Tauri, React, Rust, SQLite and project workspace foundation.
 - Phase 1 establishes structured `Character` and `CharacterState` memory.
 - Phase 3 establishes provider-independent capability contracts, runtime model profiles, an in-memory registry and a deterministic structured-memory Context Compiler. It does not connect a provider.
+- Phase 4 establishes one OpenAI-compatible HTTP adapter, an injected transport boundary, SSE streaming parsing and a typed provider-generate command. It does not persist credentials or add provider settings UI.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -51,6 +52,7 @@ current Phase 1 implementation.
 - Provider calls are routed through a common capability-aware abstraction. Unsupported features such as tools, vision, embeddings or structured output are reported explicitly.
 - `ProviderRegistry` stores `Arc<dyn AIProvider>` adapters in memory and resolves models by provider id plus model id. `ModelProfile` is runtime metadata with context window, output reserve, capability flags and model strategy hints; it is not canonical SQLite state.
 - Phase 3 includes only the async contract, safe provider error mapping and a deterministic mock used by tests. No production provider, HTTP SDK, API key or local-model runtime is registered.
+- Phase 4's `OpenAiCompatibleProvider` translates the existing generate/stream contracts to `/chat/completions` and keeps the bearer token in the adapter instance only. `ReqwestTransport` is production transport; tests inject a fake transport without network access. Non-2xx, malformed JSON and malformed SSE never expose response bodies through `ProviderError` or logs.
 - API keys are stored in the platform secure credential store and are excluded from SQLite backups and cloud sync by default.
 - AI memory writes use the same transaction and revision path as user writes. A failed tool sequence cannot leave a half-applied canonical mutation.
 
@@ -61,6 +63,7 @@ current Phase 1 implementation.
 - The Context Compiler selects structured memory first, then optional semantic results. It applies a per-task token budget and never sends the entire project memory or chat history automatically.
 - Phase 3's compiler reads Project and explicitly selected Character/CharacterState records through `ContextSource`, accepts transient working blocks, uses model profile budget metadata and returns omission/truncation details without writing memory.
 - A missing provider capability or retrieval service results in a visible degraded path, not an implicit change to canonical state.
+- `provider_generate` resolves a model through `ProviderRegistry` and calls the async provider contract. The registry remains empty at startup until a later secure-credential setup registers an adapter.
 
 ## Manuscript and chat
 

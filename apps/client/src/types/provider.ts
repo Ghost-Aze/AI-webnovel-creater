@@ -28,3 +28,28 @@ export interface ModelRef {
   provider_id: string;
   model_id: string;
 }
+
+export type PromptRole = "system" | "user" | "assistant";
+
+export interface PromptMessage {
+  role: PromptRole;
+  content: string;
+}
+
+export interface GenerateRequest {
+  model: ModelRef;
+  messages: PromptMessage[];
+  max_output_tokens: number;
+  temperature: number | null;
+}
+
+export interface ProviderUsage {
+  input_tokens: number | null;
+  output_tokens: number | null;
+}
+
+export interface GenerateResponse {
+  model: ModelRef;
+  text: string;
+  usage: ProviderUsage;
+}

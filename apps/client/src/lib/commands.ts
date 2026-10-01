@@ -23,7 +23,12 @@ import type {
   UpdateProjectInput,
 } from "../types/project";
 import type { CompiledContext, ContextCompileRequest } from "../types/context";
-import type { ModelProfile, ProviderDescriptor } from "../types/provider";
+import type {
+  GenerateRequest,
+  GenerateResponse,
+  ModelProfile,
+  ProviderDescriptor,
+} from "../types/provider";
 
 async function call<T>(
   command: string,
@@ -197,6 +202,12 @@ export function listModels(providerId?: string): Promise<ModelProfile[]> {
   return call<ModelProfile[]>("model_list", {
     provider_id: providerId ?? null,
   });
+}
+
+export function generateProvider(
+  request: GenerateRequest,
+): Promise<GenerateResponse> {
+  return call<GenerateResponse>("provider_generate", { request });
 }
 
 export function compileContext(

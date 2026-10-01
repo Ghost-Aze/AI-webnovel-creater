@@ -86,7 +86,8 @@ pub fn run() {
             commands::memory_proposal_reject,
             commands::provider_list,
             commands::model_list,
-            commands::context_compile
+            commands::context_compile,
+            commands::provider_generate
         ])
         .run(tauri::generate_context!())
         .expect("error while running Webnovel AI Studio");

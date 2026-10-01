@@ -12,6 +12,7 @@ import {
   createCharacter,
   createProject,
   compileContext,
+  generateProvider,
   getCharacterState,
   getProject,
   listModels,
@@ -24,6 +25,7 @@ import {
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
+import type { GenerateRequest } from "../types/provider";
 
 describe("typed project commands", () => {
   it("returns the exact project shape from the command boundary", async () => {
@@ -166,5 +168,23 @@ describe("typed project commands", () => {
     };
     await compileContext(request);
     expect(invokeMock).toHaveBeenCalledWith("context_compile", { request });
+  });
+
+  it("uses the typed provider generate command payload", async () => {
+    const request: GenerateRequest = {
+      model: { provider_id: "mock", model_id: "mock-small" },
+      messages: [{ role: "user", content: "Write a scene" }],
+      max_output_tokens: 64,
+      temperature: 0.7,
+    };
+    const response = {
+      model: request.model,
+      text: "A scene",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    };
+    invokeMock.mockResolvedValueOnce(response);
+
+    await expect(generateProvider(request)).resolves.toEqual(response);
+    expect(invokeMock).toHaveBeenCalledWith("provider_generate", { request });
   });
 });
