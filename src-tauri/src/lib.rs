@@ -4,6 +4,7 @@ pub mod db;
 pub mod domain;
 pub mod error;
 pub mod projects;
+pub mod provider;
 pub mod revisions;
 
 #[derive(Clone)]

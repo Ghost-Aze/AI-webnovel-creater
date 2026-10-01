@@ -1,6 +1,8 @@
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::provider::ProviderError;
+
 #[derive(Debug, Error, Serialize, PartialEq, Eq)]
 #[serde(tag = "code", content = "details")]
 pub enum AppError {
@@ -31,6 +33,21 @@ pub enum AppError {
     #[serde(rename = "invalid_proposal")]
     #[error("The proposal is invalid for its current lifecycle state.")]
     InvalidProposal,
+    #[serde(rename = "provider_not_found")]
+    #[error("The requested provider is not available.")]
+    ProviderNotFound,
+    #[serde(rename = "model_not_found")]
+    #[error("The requested model is not available.")]
+    ModelNotFound,
+    #[serde(rename = "unsupported_capability")]
+    #[error("The provider does not support this capability.")]
+    UnsupportedCapability,
+    #[serde(rename = "invalid_provider_request")]
+    #[error("The provider request is invalid.")]
+    InvalidProviderRequest,
+    #[serde(rename = "provider_failure")]
+    #[error("The provider operation failed.")]
+    ProviderFailure,
     #[serde(rename = "storage")]
     #[error("Database operation failed.")]
     Storage,
@@ -53,8 +70,25 @@ impl AppError {
             Self::Conflict => "conflict",
             Self::LockedCanon => "locked_canon",
             Self::InvalidProposal => "invalid_proposal",
+            Self::ProviderNotFound => "provider_not_found",
+            Self::ModelNotFound => "model_not_found",
+            Self::UnsupportedCapability => "unsupported_capability",
+            Self::InvalidProviderRequest => "invalid_provider_request",
+            Self::ProviderFailure => "provider_failure",
             Self::Storage => "storage",
             Self::Internal => "internal",
+        }
+    }
+}
+
+impl From<ProviderError> for AppError {
+    fn from(error: ProviderError) -> Self {
+        match error {
+            ProviderError::ProviderNotFound => Self::ProviderNotFound,
+            ProviderError::ModelNotFound => Self::ModelNotFound,
+            ProviderError::UnsupportedCapability { .. } => Self::UnsupportedCapability,
+            ProviderError::InvalidRequest => Self::InvalidProviderRequest,
+            ProviderError::ProviderFailure => Self::ProviderFailure,
         }
     }
 }
