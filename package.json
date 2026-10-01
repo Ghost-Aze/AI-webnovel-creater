@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm --workspace apps/client run dev",
     "build": "npm --workspace apps/client run build",
-    "test": "npm --workspace apps/client run test",
+    "test": "npm --workspace apps/client run test --",
     "typecheck": "npm --workspace apps/client run typecheck",
     "lint": "npm --workspace apps/client run lint",
     "format:check": "npm --workspace apps/client run format:check",
