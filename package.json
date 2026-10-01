@@ -1,0 +1,19 @@
+{
+  "name": "webnovel-ai-studio",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/client"],
+  "scripts": {
+    "dev": "npm --workspace apps/client run dev",
+    "build": "npm --workspace apps/client run build",
+    "test": "npm --workspace apps/client run test",
+    "typecheck": "npm --workspace apps/client run typecheck",
+    "lint": "npm --workspace apps/client run lint",
+    "format:check": "npm --workspace apps/client run format:check",
+    "tauri:dev": "tauri dev --features tauri-app",
+    "tauri:build": "tauri build --features tauri-app"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4"
+  }
+}

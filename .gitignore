@@ -1,0 +1,15 @@
+node_modules/
+dist/
+target/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+.DS_Store
+.idea/
+.vscode/
+src-tauri/gen/
+src-tauri/target/
+coverage/
