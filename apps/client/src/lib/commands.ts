@@ -22,6 +22,14 @@ import type {
   ProjectListFilter,
   UpdateProjectInput,
 } from "../types/project";
+import type {
+  CompiledContext,
+  ContextCompileRequest,
+} from "../types/context";
+import type {
+  ModelProfile,
+  ProviderDescriptor,
+} from "../types/provider";
 
 async function call<T>(
   command: string,
@@ -185,4 +193,20 @@ export function promoteMemoryProposal(
 
 export function rejectMemoryProposal(id: string): Promise<Proposal> {
   return call<Proposal>("memory_proposal_reject", { id });
+}
+
+export function listProviders(): Promise<ProviderDescriptor[]> {
+  return call<ProviderDescriptor[]>("provider_list", {});
+}
+
+export function listModels(providerId?: string): Promise<ModelProfile[]> {
+  return call<ModelProfile[]>("model_list", {
+    provider_id: providerId ?? null,
+  });
+}
+
+export function compileContext(
+  input: ContextCompileRequest,
+): Promise<CompiledContext> {
+  return call<CompiledContext>("context_compile", { request: input });
 }

@@ -1,5 +1,6 @@
 use crate::{
     characters::service::CharacterService,
+    context::{CompiledContext, ContextCompileRequest, ContextCompiler, ServiceContextSource},
     domain::character::{
         Character, CharacterListFilter, CharacterState, CreateCharacterInput, UpdateCharacterInput,
         UpdateCharacterStateInput,
@@ -10,6 +11,7 @@ use crate::{
         ProposalStatus,
     },
     error::AppResult,
+    provider::{ModelProfile, ProviderDescriptor, ProviderRegistry},
     revisions::service::ProposalService,
     revisions::service::RevisionService,
 };
@@ -205,6 +207,38 @@ pub fn set_memory_canon_status(
     )
 }
 
+pub fn list_providers(registry: &ProviderRegistry) -> AppResult<Vec<ProviderDescriptor>> {
+    report(
+        "provider_list",
+        registry.list_providers().map_err(Into::into),
+    )
+}
+
+pub fn list_models(
+    registry: &ProviderRegistry,
+    provider_id: Option<String>,
+) -> AppResult<Vec<ModelProfile>> {
+    report(
+        "model_list",
+        registry
+            .list_models(provider_id.as_deref())
+            .map_err(Into::into),
+    )
+}
+
+pub fn compile_context(
+    registry: &ProviderRegistry,
+    compiler: &ContextCompiler,
+    source: &ServiceContextSource,
+    request: ContextCompileRequest,
+) -> AppResult<CompiledContext> {
+    let resolved = registry.resolve(&request.model.provider_id, &request.model.model_id)?;
+    report(
+        "context_compile",
+        compiler.compile(request, &resolved.profile, source),
+    )
+}
+
 fn report<T>(command: &'static str, result: AppResult<T>) -> AppResult<T> {
     match &result {
         Ok(_) => tracing::debug!(command, "project command completed"),
@@ -395,6 +429,32 @@ mod tauri_commands {
     ) -> AppResult<MemoryProposal> {
         reject_memory_proposal(&state.proposal_service, id)
     }
+
+    #[tauri::command]
+    pub fn provider_list(state: State<'_, AppState>) -> AppResult<Vec<ProviderDescriptor>> {
+        list_providers(&state.provider_registry)
+    }
+
+    #[tauri::command]
+    pub fn model_list(
+        state: State<'_, AppState>,
+        provider_id: Option<String>,
+    ) -> AppResult<Vec<ModelProfile>> {
+        list_models(&state.provider_registry, provider_id)
+    }
+
+    #[tauri::command]
+    pub fn context_compile(
+        state: State<'_, AppState>,
+        request: ContextCompileRequest,
+    ) -> AppResult<CompiledContext> {
+        compile_context(
+            &state.provider_registry,
+            &state.context_compiler,
+            &state.context_source,
+            request,
+        )
+    }
 }
 
 #[cfg(feature = "tauri-app")]
@@ -404,6 +464,7 @@ pub use tauri_commands::*;
 mod tests {
     use super::*;
     use crate::{
+        context::{ContextBudget, ContextTask},
         db,
         domain::{
             character::CreateCharacterInput,
@@ -411,6 +472,7 @@ mod tests {
         },
         error::AppError,
         projects::{repository::ProjectRepository, service::ProjectService},
+        provider::{ModelRef, ProviderRegistry},
         revisions::{repository::RevisionRepository, service::RevisionService},
     };
 
@@ -498,5 +560,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(updated.revision, 2);
+    }
+
+    #[test]
+    fn provider_and_context_helpers_use_safe_typed_contracts() {
+        let registry = ProviderRegistry::new();
+        assert!(list_providers(&registry).unwrap().is_empty());
+        assert!(list_models(&registry, None).unwrap().is_empty());
+
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let characters = crate::characters::service::CharacterService::new(
+            crate::characters::repository::CharacterRepository::new(connection),
+        );
+        let source = crate::context::ServiceContextSource::new(projects, characters);
+        let request = ContextCompileRequest {
+            project_id: "project".into(),
+            task: ContextTask::DeveloperChat,
+            model: ModelRef {
+                provider_id: "missing".into(),
+                model_id: "model".into(),
+            },
+            system_instructions: "Instructions".into(),
+            character_ids: Vec::new(),
+            include_character_states: false,
+            working_memory: Vec::new(),
+            budget: ContextBudget::default(),
+        };
+        assert_eq!(
+            compile_context(&registry, &ContextCompiler::default(), &source, request),
+            Err(AppError::ProviderNotFound)
+        );
     }
 }

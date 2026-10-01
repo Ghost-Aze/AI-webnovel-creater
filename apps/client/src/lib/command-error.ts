@@ -8,6 +8,11 @@ export type CommandErrorCode =
   | "conflict"
   | "locked_canon"
   | "invalid_proposal"
+  | "provider_not_found"
+  | "model_not_found"
+  | "unsupported_capability"
+  | "invalid_provider_request"
+  | "provider_failure"
   | "storage"
   | "internal";
 
@@ -30,6 +35,11 @@ const messages: Record<Exclude<CommandErrorCode, "validation">, string> = {
   conflict: "This record changed. Reload and try again.",
   locked_canon: "Locked canon cannot be changed.",
   invalid_proposal: "This proposal is no longer available.",
+  provider_not_found: "The requested provider is not available.",
+  model_not_found: "The requested model is not available.",
+  unsupported_capability: "The provider does not support this capability.",
+  invalid_provider_request: "The provider request is invalid.",
+  provider_failure: "The provider operation failed.",
   storage: "The project could not be saved. Try again.",
   internal: "Something went wrong. Try again.",
 };

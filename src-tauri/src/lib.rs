@@ -11,7 +11,10 @@ pub mod revisions;
 #[derive(Clone)]
 pub struct AppState {
     pub character_service: characters::service::CharacterService,
+    pub context_compiler: context::ContextCompiler,
+    pub context_source: context::ServiceContextSource,
     pub project_service: projects::service::ProjectService,
+    pub provider_registry: provider::ProviderRegistry,
     pub revision_service: revisions::service::RevisionService,
     pub proposal_service: revisions::service::ProposalService,
 }
@@ -48,9 +51,14 @@ pub fn run() {
                 revisions::repository::RevisionRepository::new(database.clone()),
                 characters::repository::CharacterRepository::new(database.clone()),
             );
+            let context_source =
+                context::ServiceContextSource::new(service.clone(), character_service.clone());
             app.manage(AppState {
                 character_service,
+                context_compiler: context::ContextCompiler::default(),
+                context_source,
                 project_service: service,
+                provider_registry: provider::ProviderRegistry::new(),
                 revision_service,
                 proposal_service,
             });
@@ -75,7 +83,10 @@ pub fn run() {
             commands::memory_proposal_create,
             commands::memory_proposal_list,
             commands::memory_proposal_promote,
-            commands::memory_proposal_reject
+            commands::memory_proposal_reject,
+            commands::provider_list,
+            commands::model_list,
+            commands::context_compile
         ])
         .run(tauri::generate_context!())
         .expect("error while running Webnovel AI Studio");

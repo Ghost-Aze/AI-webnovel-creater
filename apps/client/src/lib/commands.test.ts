@@ -11,15 +11,19 @@ vi.mock("@tauri-apps/api/core", () => ({
 import {
   createCharacter,
   createProject,
+  compileContext,
   getCharacterState,
   getProject,
+  listModels,
   listMemoryHistory,
+  listProviders,
   restoreMemory,
   setMemoryCanonStatus,
   updateCharacter,
   updateCharacterState,
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
+import type { ContextCompileRequest } from "../types/context";
 
 describe("typed project commands", () => {
   it("returns the exact project shape from the command boundary", async () => {
@@ -136,5 +140,31 @@ describe("typed project commands", () => {
       input: { goals: "Find the key" },
       expected_revision: 1,
     });
+  });
+
+  it("uses typed provider and context command payloads", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    await listProviders();
+    expect(invokeMock).toHaveBeenCalledWith("provider_list", {});
+
+    invokeMock.mockResolvedValueOnce([]);
+    await listModels();
+    expect(invokeMock).toHaveBeenCalledWith("model_list", {
+      provider_id: null,
+    });
+
+    invokeMock.mockResolvedValueOnce({ blocks: [] });
+    const request: ContextCompileRequest = {
+      project_id: "project-id",
+      task: "writing",
+      model: { provider_id: "mock", model_id: "mock-small" },
+      system_instructions: "Write",
+      character_ids: [],
+      include_character_states: false,
+      working_memory: [],
+      budget: { output_reserve_tokens: null, safety_margin_tokens: 0 },
+    };
+    await compileContext(request);
+    expect(invokeMock).toHaveBeenCalledWith("context_compile", { request });
   });
 });
