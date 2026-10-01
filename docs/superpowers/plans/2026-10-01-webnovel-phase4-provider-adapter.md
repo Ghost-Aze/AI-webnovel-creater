@@ -65,11 +65,13 @@ orchestration, or UI.
 ## Completion record
 
 - Branch: `phase4/implementation`
-- Implementation commits: pending final commit after verification
+- Implementation commit: `71f11ad` (`feat: add openai compatible provider adapter`)
 - Frontend: format, typecheck, lint, build passed; 25 tests passed.
 - Rust: format, Clippy and tests passed; 41 unit tests (including 10 HTTP
   adapter tests) and 21 integration tests passed; 0 doc-test failures.
 - Review: Important streaming findings fixed in one pass with byte-level UTF-8
   buffering, blank-line SSE event framing and strict truncated-stream errors.
+- Review: Minor URL redaction, whitespace normalization, iterative polling and
+  invalid-header handling findings were also addressed.
 - Native Tauri feature check remains environment-limited by the cloud image's
   missing `glib-2.0 >= 2.70` prerequisite.
