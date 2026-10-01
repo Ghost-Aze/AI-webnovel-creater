@@ -33,6 +33,7 @@ const model = {
   strengths: [],
   weaknesses: [],
   strategy: [],
+  tier: "medium",
   capabilities: {
     streaming: true,
     embeddings: false,

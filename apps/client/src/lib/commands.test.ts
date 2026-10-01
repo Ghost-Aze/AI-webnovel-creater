@@ -21,6 +21,7 @@ import {
   listMemoryHistory,
   listProviders,
   removeProvider,
+  routeModel,
   restoreMemory,
   setMemoryCanonStatus,
   updateCharacter,
@@ -31,6 +32,7 @@ import type { ContextCompileRequest } from "../types/context";
 import type {
   GenerateRequest,
   ProviderConfigureInput,
+  RoutingRequest,
 } from "../types/provider";
 
 describe("typed project commands", () => {
@@ -159,6 +161,43 @@ describe("typed project commands", () => {
     await listModels();
     expect(invokeMock).toHaveBeenCalledWith("model_list", {
       provider_id: null,
+    });
+
+    const routingRequest: RoutingRequest = {
+      task: "main_writing",
+      quality: "balanced",
+      preferred_model: null,
+      required_capabilities: {
+        streaming: true,
+        embeddings: false,
+        tools: false,
+        vision: false,
+        structured_output: true,
+        prompt_caching: false,
+      },
+      minimum_context_window_tokens: 8_192,
+    };
+    const route = {
+      model: { provider_id: "mock", model_id: "mock-small" },
+      profile: {
+        provider_id: "mock",
+        model_id: "mock-small",
+        display_name: "Mock Small",
+        context_window_tokens: 16_384,
+        default_output_tokens: 1_024,
+        strengths: ["prose"],
+        weaknesses: [],
+        strategy: [],
+        tier: "small",
+        capabilities: routingRequest.required_capabilities,
+      },
+      quality: "balanced",
+      reason: "policy",
+    } as const;
+    invokeMock.mockResolvedValueOnce(route);
+    await expect(routeModel(routingRequest)).resolves.toEqual(route);
+    expect(invokeMock).toHaveBeenCalledWith("model_route", {
+      request: routingRequest,
     });
 
     invokeMock.mockResolvedValueOnce({ blocks: [] });

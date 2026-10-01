@@ -22,6 +22,16 @@ pub struct ProviderCapabilities {
     pub prompt_caching: bool,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelTier {
+    Local,
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelProfile {
     pub provider_id: String,
@@ -32,6 +42,8 @@ pub struct ModelProfile {
     pub strengths: Vec<String>,
     pub weaknesses: Vec<String>,
     pub strategy: Vec<String>,
+    #[serde(default)]
+    pub tier: ModelTier,
     pub capabilities: ProviderCapabilities,
 }
 
@@ -147,6 +159,7 @@ mod tests {
             strengths: vec!["prose".into()],
             weaknesses: vec!["continuity".into()],
             strategy: vec!["use plans".into()],
+            tier: ModelTier::Small,
             capabilities: ProviderCapabilities {
                 streaming: false,
                 embeddings: false,

@@ -91,6 +91,7 @@ pub fn run() {
             commands::memory_proposal_reject,
             commands::provider_list,
             commands::model_list,
+            commands::model_route,
             commands::context_compile,
             commands::provider_generate,
             commands::provider_configure,

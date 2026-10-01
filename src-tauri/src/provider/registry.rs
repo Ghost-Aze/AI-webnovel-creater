@@ -140,6 +140,7 @@ mod tests {
             strengths: Vec::new(),
             weaknesses: Vec::new(),
             strategy: Vec::new(),
+            tier: crate::provider::ModelTier::Medium,
             capabilities: ProviderCapabilities::default(),
         }
     }

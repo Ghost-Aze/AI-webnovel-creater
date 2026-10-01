@@ -114,6 +114,7 @@ mod tests {
                 strengths: Vec::new(),
                 weaknesses: Vec::new(),
                 strategy: Vec::new(),
+                tier: crate::provider::ModelTier::Small,
                 capabilities: ProviderCapabilities::default(),
             }],
         )

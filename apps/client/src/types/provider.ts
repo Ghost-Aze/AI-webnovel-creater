@@ -12,6 +12,8 @@ export interface ProviderCapabilities {
   prompt_caching: boolean;
 }
 
+export type ModelTier = "local" | "small" | "medium" | "large";
+
 export interface ModelProfile {
   provider_id: string;
   model_id: string;
@@ -21,12 +23,48 @@ export interface ModelProfile {
   strengths: string[];
   weaknesses: string[];
   strategy: string[];
+  tier: ModelTier;
   capabilities: ProviderCapabilities;
 }
 
 export interface ModelRef {
   provider_id: string;
   model_id: string;
+}
+
+export type QualityMode = "fast" | "balanced" | "deep";
+
+export type ModelTask =
+  | "story_architecture"
+  | "arc_planning"
+  | "chapter_planning"
+  | "scene_planning"
+  | "main_writing"
+  | "character_psychology"
+  | "major_revision"
+  | "memory_extraction"
+  | "summary"
+  | "entity_extraction"
+  | "timeline_extraction"
+  | "metadata"
+  | "retrieval_query"
+  | "continuity_check";
+
+export type RouteSelectionReason = "preferred" | "policy";
+
+export interface RoutingRequest {
+  task: ModelTask;
+  quality: QualityMode;
+  preferred_model: ModelRef | null;
+  required_capabilities: ProviderCapabilities;
+  minimum_context_window_tokens: number | null;
+}
+
+export interface RouteDecision {
+  model: ModelRef;
+  profile: ModelProfile;
+  quality: QualityMode;
+  reason: RouteSelectionReason;
 }
 
 export type PromptRole = "system" | "user" | "assistant";

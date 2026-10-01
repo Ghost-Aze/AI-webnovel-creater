@@ -39,6 +39,9 @@ pub enum AppError {
     #[serde(rename = "model_not_found")]
     #[error("The requested model is not available.")]
     ModelNotFound,
+    #[serde(rename = "no_suitable_model")]
+    #[error("No suitable model is available for this task.")]
+    NoSuitableModel,
     #[serde(rename = "unsupported_capability")]
     #[error("The provider does not support this capability.")]
     UnsupportedCapability,
@@ -75,6 +78,7 @@ impl AppError {
             Self::InvalidProposal => "invalid_proposal",
             Self::ProviderNotFound => "provider_not_found",
             Self::ModelNotFound => "model_not_found",
+            Self::NoSuitableModel => "no_suitable_model",
             Self::UnsupportedCapability => "unsupported_capability",
             Self::InvalidProviderRequest => "invalid_provider_request",
             Self::ProviderFailure => "provider_failure",
@@ -90,6 +94,7 @@ impl From<ProviderError> for AppError {
         match error {
             ProviderError::ProviderNotFound => Self::ProviderNotFound,
             ProviderError::ModelNotFound => Self::ModelNotFound,
+            ProviderError::NoSuitableModel => Self::NoSuitableModel,
             ProviderError::UnsupportedCapability { .. } => Self::UnsupportedCapability,
             ProviderError::InvalidRequest => Self::InvalidProviderRequest,
             ProviderError::ProviderFailure => Self::ProviderFailure,

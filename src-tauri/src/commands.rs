@@ -12,9 +12,9 @@ use crate::{
     },
     error::AppResult,
     provider::{
-        CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile,
+        CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile, ModelRouter,
         ProviderConfigureInput, ProviderConfigureResult, ProviderDescriptor, ProviderRegistry,
-        ProviderRuntime,
+        ProviderRuntime, RouteDecision, RoutingRequest,
     },
     revisions::service::ProposalService,
     revisions::service::RevisionService,
@@ -227,6 +227,16 @@ pub fn list_models(
         registry
             .list_models(provider_id.as_deref())
             .map_err(Into::into),
+    )
+}
+
+pub fn route_model(
+    registry: &ProviderRegistry,
+    request: RoutingRequest,
+) -> AppResult<RouteDecision> {
+    report(
+        "model_route",
+        ModelRouter.route(registry, request).map_err(Into::into),
     )
 }
 
@@ -486,6 +496,14 @@ mod tauri_commands {
         list_models(&state.provider_registry, provider_id)
     }
 
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn model_route(
+        state: State<'_, AppState>,
+        request: RoutingRequest,
+    ) -> AppResult<RouteDecision> {
+        route_model(&state.provider_registry, request)
+    }
+
     #[tauri::command]
     pub fn context_compile(
         state: State<'_, AppState>,
@@ -550,8 +568,9 @@ mod tests {
         projects::{repository::ProjectRepository, service::ProjectService},
         provider::{
             EphemeralCredentialStore, GenerateRequest, MockProvider, ModelProfile, ModelRef,
-            PromptMessage, PromptRole, ProviderCapabilities, ProviderConfigureInput,
-            ProviderDescriptor, ProviderRegistry, ProviderRuntime,
+            ModelTask, ModelTier, PromptMessage, PromptRole, ProviderCapabilities,
+            ProviderConfigureInput, ProviderDescriptor, ProviderRegistry, ProviderRuntime,
+            QualityMode, RouteSelectionReason, RoutingRequest,
         },
         revisions::{repository::RevisionRepository, service::RevisionService},
     };
@@ -691,6 +710,7 @@ mod tests {
                     strengths: Vec::new(),
                     weaknesses: Vec::new(),
                     strategy: Vec::new(),
+                    tier: crate::provider::ModelTier::Medium,
                     capabilities: ProviderCapabilities::default(),
                 }],
             )))
@@ -715,6 +735,61 @@ mod tests {
     }
 
     #[test]
+    fn model_route_helper_returns_typed_policy_decision_and_safe_errors() {
+        let registry = ProviderRegistry::new();
+        registry
+            .register(Arc::new(MockProvider::new(
+                ProviderDescriptor {
+                    id: "mock".into(),
+                    display_name: "Mock".into(),
+                },
+                vec![ModelProfile {
+                    provider_id: "mock".into(),
+                    model_id: "writer".into(),
+                    display_name: "Writer".into(),
+                    context_window_tokens: 4096,
+                    default_output_tokens: 512,
+                    strengths: vec!["prose".into()],
+                    weaknesses: Vec::new(),
+                    strategy: Vec::new(),
+                    tier: ModelTier::Medium,
+                    capabilities: ProviderCapabilities::default(),
+                }],
+            )))
+            .unwrap();
+
+        let decision = route_model(
+            &registry,
+            RoutingRequest {
+                task: ModelTask::MainWriting,
+                quality: QualityMode::Balanced,
+                preferred_model: None,
+                required_capabilities: ProviderCapabilities::default(),
+                minimum_context_window_tokens: Some(2048),
+            },
+        )
+        .unwrap();
+        assert_eq!(decision.model.model_id, "writer");
+        assert_eq!(decision.reason, RouteSelectionReason::Policy);
+
+        let error = route_model(
+            &registry,
+            RoutingRequest {
+                task: ModelTask::MainWriting,
+                quality: QualityMode::Balanced,
+                preferred_model: None,
+                required_capabilities: ProviderCapabilities {
+                    tools: true,
+                    ..ProviderCapabilities::default()
+                },
+                minimum_context_window_tokens: None,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, AppError::NoSuitableModel);
+    }
+
+    #[test]
     fn provider_runtime_commands_configure_and_remove_shared_registry() {
         let runtime = ProviderRuntime::new(Arc::new(EphemeralCredentialStore::new()));
         let input = ProviderConfigureInput {
@@ -732,6 +807,7 @@ mod tests {
                 strengths: Vec::new(),
                 weaknesses: Vec::new(),
                 strategy: Vec::new(),
+                tier: crate::provider::ModelTier::Medium,
                 capabilities: ProviderCapabilities::default(),
             }],
             credential_id: "session-credential".into(),

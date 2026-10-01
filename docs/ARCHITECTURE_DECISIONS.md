@@ -17,6 +17,7 @@ current Phase 1 implementation.
 - Phase 5 establishes a process-memory provider runtime and credential-store abstraction. It supports configure/remove lifecycle commands without persisting secrets.
 - Phase 6 establishes the typed provider setup route and explicit credential-store status boundary. The cloud/headless runtime uses session-only ephemeral storage.
 - Phase 7 supplies target-specific Windows Credential Manager and Android Keystore-backed adapters. Native targets select those adapters at startup; unsupported and headless targets remain explicit and never fall back to plaintext storage. Provider descriptors and model profiles are still process-local until a later persistence phase.
+- Phase 8 supplies a pure `ModelRouter` and `model_route` command. Quality modes and logical task tags select among registered profiles without making provider calls; orchestration remains a separate phase.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -70,6 +71,7 @@ current Phase 1 implementation.
 - `ProviderRuntime` owns the shared registry and a `CredentialStore`. Phase 5's `EphemeralCredentialStore` is intentionally cleared on restart and is only a bridge to platform backends. Configure failures roll back the credential and registry mapping; remove deletes both runtime entries.
 - Phase 6 exposes `CredentialStoreKind` and `provider_credential_status` without returning secrets. The provider settings form uses typed configure/remove commands, validates model budget metadata locally, and clears the API-key input after a successful submission.
 - Phase 7's `PlatformSecureCredentialStore` delegates to Windows Credential Manager or the Android-native Keystore-backed store behind a target-specific Rust boundary. Initialization and platform failures are normalized to typed availability/errors; missing entries map to `credential_not_found`, and no raw keyring detail or plaintext fallback is exposed.
+- Phase 8 adds `ModelTier`, `ModelTask`, `QualityMode` and deterministic capability/context-aware routing. Explicit user model choices remain authoritative when valid, and no suitable candidate returns a safe typed error rather than silently selecting an incompatible model.
 
 ## Manuscript and chat
 

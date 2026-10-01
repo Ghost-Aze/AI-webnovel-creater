@@ -10,6 +10,7 @@ export type CommandErrorCode =
   | "invalid_proposal"
   | "provider_not_found"
   | "model_not_found"
+  | "no_suitable_model"
   | "unsupported_capability"
   | "invalid_provider_request"
   | "provider_failure"
@@ -38,6 +39,7 @@ const messages: Record<Exclude<CommandErrorCode, "validation">, string> = {
   invalid_proposal: "This proposal is no longer available.",
   provider_not_found: "The requested provider is not available.",
   model_not_found: "The requested model is not available.",
+  no_suitable_model: "No suitable model is available for this task.",
   unsupported_capability: "The provider does not support this capability.",
   invalid_provider_request: "The provider request is invalid.",
   provider_failure: "The provider operation failed.",

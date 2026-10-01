@@ -545,6 +545,7 @@ mod tests {
             strengths: vec!["prose".into()],
             weaknesses: Vec::new(),
             strategy: Vec::new(),
+            tier: crate::provider::ModelTier::Medium,
             capabilities: ProviderCapabilities {
                 streaming,
                 ..ProviderCapabilities::default()

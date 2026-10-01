@@ -343,7 +343,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::provider::{ProviderCapabilities, ProviderDescriptor};
+    use crate::provider::{ModelTier, ProviderCapabilities, ProviderDescriptor};
 
     fn models(provider_id: &str) -> Vec<ModelProfile> {
         vec![ModelProfile {
@@ -355,6 +355,7 @@ mod tests {
             strengths: Vec::new(),
             weaknesses: Vec::new(),
             strategy: Vec::new(),
+            tier: ModelTier::Small,
             capabilities: ProviderCapabilities::default(),
         }]
     }

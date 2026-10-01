@@ -6,6 +6,8 @@ pub enum ProviderError {
     ProviderNotFound,
     #[error("model was not found")]
     ModelNotFound,
+    #[error("no suitable model was found for the requested route")]
+    NoSuitableModel,
     #[error("provider capability is unsupported")]
     UnsupportedCapability { capability: String },
     #[error("provider request is invalid")]

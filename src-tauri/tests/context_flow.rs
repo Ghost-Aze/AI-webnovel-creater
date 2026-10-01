@@ -10,7 +10,7 @@ use webnovel_ai_studio_lib::{
     },
     error::AppError,
     projects::{repository::ProjectRepository, service::ProjectService},
-    provider::{ModelProfile, ModelRef, ProviderCapabilities},
+    provider::{ModelProfile, ModelRef, ModelTier, ProviderCapabilities},
 };
 
 fn services() -> (ProjectService, CharacterService) {
@@ -31,6 +31,7 @@ fn profile() -> ModelProfile {
         strengths: Vec::new(),
         weaknesses: Vec::new(),
         strategy: Vec::new(),
+        tier: ModelTier::Medium,
         capabilities: ProviderCapabilities::default(),
     }
 }

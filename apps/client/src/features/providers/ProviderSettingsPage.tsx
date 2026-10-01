@@ -11,6 +11,7 @@ import {
 import type {
   CredentialStoreStatus,
   ModelProfile,
+  ModelTier,
   ProviderConfigureInput,
   ProviderDescriptor,
 } from "../../types/provider";
@@ -21,6 +22,7 @@ interface ModelDraft {
   contextWindowTokens: string;
   defaultOutputTokens: string;
   streaming: boolean;
+  tier: ModelTier;
 }
 
 interface ProviderDraft {
@@ -39,6 +41,7 @@ function createModelDraft(): ModelDraft {
     contextWindowTokens: "8192",
     defaultOutputTokens: "1024",
     streaming: true,
+    tier: "medium",
   };
 }
 
@@ -63,6 +66,7 @@ function toModelProfile(providerId: string, model: ModelDraft): ModelProfile {
     strengths: [],
     weaknesses: [],
     strategy: [],
+    tier: model.tier,
     capabilities: {
       streaming: model.streaming,
       embeddings: false,
@@ -435,7 +439,10 @@ export function ProviderSettingsPage() {
                 <div className="provider-model-form-header">
                   <div>
                     <span className="toolbar-label">Model profiles</span>
-                    <p>Model routing remains outside this phase.</p>
+                    <p>
+                      Routing tier guides FAST, BALANCED and DEEP model
+                      selection.
+                    </p>
                   </div>
                   <button
                     className="button button-ghost button-small"
@@ -521,6 +528,26 @@ export function ProviderSettingsPage() {
                         />
                       </label>
                     </div>
+                    <label
+                      className="field-label"
+                      htmlFor={`model-tier-${index}`}
+                    >
+                      Routing tier
+                      <select
+                        id={`model-tier-${index}`}
+                        value={model.tier}
+                        onChange={(event) =>
+                          updateModel(index, {
+                            tier: event.target.value as ModelTier,
+                          })
+                        }
+                      >
+                        <option value="local">Local helper</option>
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                      </select>
+                    </label>
                     <label
                       className="checkbox-field"
                       htmlFor={`model-streaming-${index}`}

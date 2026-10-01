@@ -31,6 +31,8 @@ import type {
   ProviderConfigureInput,
   ProviderConfigureResult,
   ProviderDescriptor,
+  RouteDecision,
+  RoutingRequest,
 } from "../types/provider";
 
 async function call<T>(
@@ -205,6 +207,10 @@ export function listModels(providerId?: string): Promise<ModelProfile[]> {
   return call<ModelProfile[]>("model_list", {
     provider_id: providerId ?? null,
   });
+}
+
+export function routeModel(request: RoutingRequest): Promise<RouteDecision> {
+  return call<RouteDecision>("model_route", { request });
 }
 
 export function generateProvider(
