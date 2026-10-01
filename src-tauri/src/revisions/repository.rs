@@ -3,7 +3,13 @@ use serde_json::Value;
 
 use crate::{
     db::SharedConnection,
-    domain::revision::{ActorType, MemoryEntityType, MemoryRevision, RevisionOperation},
+    domain::{
+        project::{new_id, now_utc},
+        revision::{
+            ActorType, CreateProposalInput, MemoryEntityType, MemoryProposal, MemoryRevision,
+            ProposalStatus, RevisionOperation,
+        },
+    },
     error::{AppError, AppResult},
 };
 
@@ -54,6 +60,106 @@ impl RevisionRepository {
             )
             .optional()?
             .ok_or(AppError::NotFound)
+    }
+
+    pub fn create_proposal(&self, input: CreateProposalInput) -> AppResult<MemoryProposal> {
+        let connection = self.connection.lock()?;
+        let timestamp = now_utc();
+        let proposal = MemoryProposal {
+            id: new_id(),
+            project_id: input.project_id,
+            entity_type: input.entity_type,
+            entity_id: input.entity_id.unwrap_or_default(),
+            operation: input.operation,
+            payload: input.payload,
+            base_revision: input.base_revision,
+            status: ProposalStatus::Draft,
+            actor_type: input.actor_type,
+            actor_id: input.actor_id,
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        };
+        connection.execute(
+            "INSERT INTO memory_proposals
+             (id, project_id, entity_type, entity_id, operation, payload, base_revision,
+              status, actor_type, actor_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![
+                proposal.id,
+                proposal.project_id,
+                proposal.entity_type.as_str(),
+                proposal.entity_id,
+                proposal.operation.as_str(),
+                serde_json::to_string(&proposal.payload).map_err(|_| AppError::Internal)?,
+                proposal.base_revision as i64,
+                proposal.status.as_str(),
+                proposal.actor_type.as_str(),
+                proposal.actor_id,
+                proposal.created_at,
+                proposal.updated_at,
+            ],
+        )?;
+        Ok(proposal)
+    }
+
+    pub fn get_proposal(&self, id: &str) -> AppResult<MemoryProposal> {
+        let connection = self.connection.lock()?;
+        connection
+            .query_row(
+                "SELECT id, project_id, entity_type, entity_id, operation, payload,
+                        base_revision, status, actor_type, actor_id, created_at, updated_at
+                 FROM memory_proposals WHERE id = ?1",
+                [id],
+                map_proposal,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)
+    }
+
+    pub fn list_proposals(
+        &self,
+        project_id: &str,
+        status: Option<ProposalStatus>,
+    ) -> AppResult<Vec<MemoryProposal>> {
+        let connection = self.connection.lock()?;
+        let mut statement = if status.is_some() {
+            connection.prepare(
+                "SELECT id, project_id, entity_type, entity_id, operation, payload,
+                        base_revision, status, actor_type, actor_id, created_at, updated_at
+                 FROM memory_proposals WHERE project_id = ?1 AND status = ?2
+                 ORDER BY updated_at DESC",
+            )?
+        } else {
+            connection.prepare(
+                "SELECT id, project_id, entity_type, entity_id, operation, payload,
+                        base_revision, status, actor_type, actor_id, created_at, updated_at
+                 FROM memory_proposals WHERE project_id = ?1
+                 ORDER BY updated_at DESC",
+            )?
+        };
+        let rows = if let Some(status) = status {
+            statement.query_map(params![project_id, status.as_str()], map_proposal)?
+        } else {
+            statement.query_map([project_id], map_proposal)?
+        };
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn set_proposal_status(
+        &self,
+        id: &str,
+        status: ProposalStatus,
+    ) -> AppResult<MemoryProposal> {
+        let connection = self.connection.lock()?;
+        let changed = connection.execute(
+            "UPDATE memory_proposals SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            params![status.as_str(), now_utc(), id],
+        )?;
+        if changed == 0 {
+            return Err(AppError::NotFound);
+        }
+        drop(connection);
+        self.get_proposal(id)
     }
 
     pub(crate) fn insert_tx(
@@ -128,6 +234,27 @@ fn map_revision(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryRevision> {
     })
 }
 
+fn map_proposal(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryProposal> {
+    let payload_text: String = row.get(5)?;
+    let payload = serde_json::from_str(&payload_text).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(error))
+    })?;
+    Ok(MemoryProposal {
+        id: row.get(0)?,
+        project_id: row.get(1)?,
+        entity_type: parse_entity_type(row.get(2)?)?,
+        entity_id: row.get(3)?,
+        operation: parse_operation(row.get(4)?)?,
+        payload,
+        base_revision: row.get::<_, i64>(6)? as u64,
+        status: parse_proposal_status(row.get(7)?)?,
+        actor_type: parse_actor_type(row.get(8)?)?,
+        actor_id: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
+    })
+}
+
 fn enum_error(value: &str) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         0,
@@ -164,6 +291,15 @@ fn parse_actor_type(value: String) -> rusqlite::Result<ActorType> {
         "user" => Ok(ActorType::User),
         "ai" => Ok(ActorType::Ai),
         "system" => Ok(ActorType::System),
+        _ => Err(enum_error(&value)),
+    }
+}
+
+fn parse_proposal_status(value: String) -> rusqlite::Result<ProposalStatus> {
+    match value.as_str() {
+        "draft" => Ok(ProposalStatus::Draft),
+        "accepted" => Ok(ProposalStatus::Accepted),
+        "rejected" => Ok(ProposalStatus::Rejected),
         _ => Err(enum_error(&value)),
     }
 }

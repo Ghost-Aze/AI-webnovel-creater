@@ -232,6 +232,72 @@ impl CharacterRepository {
         Ok(current)
     }
 
+    pub fn promote_character_update(
+        &self,
+        id: &str,
+        name: &str,
+        summary: &str,
+        role: &str,
+        expected_revision: u64,
+        proposal_id: &str,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
+                 FROM characters WHERE id = ?1",
+                [id],
+                map_character,
+            )
+            .map_err(map_not_found)?;
+        ensure_mutable(&existing.canon_status, existing.revision, expected_revision)?;
+        let mut current = existing.clone();
+        current.name = name.to_string();
+        current.summary = summary.to_string();
+        current.role = role.to_string();
+        current.revision += 1;
+        current.updated_at = now_utc();
+        transaction
+            .execute(
+                "UPDATE characters SET name = ?1, summary = ?2, role = ?3, revision = ?4, updated_at = ?5
+                 WHERE id = ?6 AND revision = ?7 AND status = 'active'",
+                rusqlite::params![
+                    current.name,
+                    current.summary,
+                    current.role,
+                    current.revision as i64,
+                    current.updated_at,
+                    id,
+                    expected_revision as i64,
+                ],
+            )
+            .map_err(map_character_write_error)?;
+        let changed = transaction.execute(
+            "UPDATE memory_proposals SET status = 'accepted', updated_at = ?1
+             WHERE id = ?2 AND project_id = ?3 AND status = 'draft'",
+            rusqlite::params![now_utc(), proposal_id, current.project_id],
+        )?;
+        if changed != 1 {
+            return Err(AppError::InvalidProposal);
+        }
+        let revision = build_revision(
+            &current.project_id,
+            MemoryEntityType::Character,
+            &current.id,
+            current.revision,
+            RevisionOperation::Promote,
+            expected_revision,
+            Some(&existing),
+            &current,
+            "proposal",
+            Some(proposal_id),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
     pub fn get_state(&self, character_id: &str) -> AppResult<Option<CharacterState>> {
         let connection = self.connection.lock()?;
         connection

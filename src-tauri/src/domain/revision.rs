@@ -139,6 +139,18 @@ pub struct MemoryProposal {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CreateProposalInput {
+    pub project_id: String,
+    pub entity_type: MemoryEntityType,
+    pub entity_id: Option<String>,
+    pub operation: RevisionOperation,
+    pub payload: Value,
+    pub base_revision: u64,
+    pub actor_type: ActorType,
+    pub actor_id: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
