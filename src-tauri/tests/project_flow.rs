@@ -33,8 +33,41 @@ fn migration_is_idempotent_and_preserves_data() {
             .unwrap()
             .query_row::<i64, _, _>("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0),)
             .unwrap(),
-        2
+        3
     );
+
+    let connection = connection.lock().unwrap();
+    let revision_columns: Vec<String> = connection
+        .prepare("PRAGMA table_info(characters)")
+        .unwrap()
+        .query_map([], |row| row.get(1))
+        .unwrap()
+        .map(|value| value.unwrap())
+        .collect();
+    assert!(revision_columns.contains(&"revision".to_string()));
+    assert!(revision_columns.contains(&"canon_status".to_string()));
+    let canon_default: String = connection
+        .prepare("PRAGMA table_info(characters)")
+        .unwrap()
+        .query_map([], |row| {
+            let name: String = row.get(1)?;
+            let default: Option<String> = row.get(4)?;
+            Ok((name, default))
+        })
+        .unwrap()
+        .map(|value| value.unwrap())
+        .find(|(name, _)| name == "canon_status")
+        .and_then(|(_, default)| default)
+        .unwrap();
+    assert_eq!(canon_default, "'canon'");
+    assert!(connection
+        .query_row::<i64, _, _>("SELECT COUNT(*) FROM memory_revisions", [], |row| row
+            .get(0),)
+        .is_ok());
+    assert!(connection
+        .query_row::<i64, _, _>("SELECT COUNT(*) FROM memory_proposals", [], |row| row
+            .get(0),)
+        .is_ok());
 }
 
 #[test]

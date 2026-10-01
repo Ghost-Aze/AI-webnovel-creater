@@ -21,6 +21,10 @@ const MIGRATIONS: &[Migration] = &[
         name: "0002_create_characters.sql",
         sql: include_str!("../../migrations/0002_create_characters.sql"),
     },
+    Migration {
+        name: "0003_create_memory_revisions.sql",
+        sql: include_str!("../../migrations/0003_create_memory_revisions.sql"),
+    },
 ];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;

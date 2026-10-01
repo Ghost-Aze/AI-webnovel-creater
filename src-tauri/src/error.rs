@@ -22,6 +22,15 @@ pub enum AppError {
     #[serde(rename = "invalid_status")]
     #[error("Stored project status is invalid.")]
     InvalidStatus,
+    #[serde(rename = "conflict")]
+    #[error("The record changed since it was loaded.")]
+    Conflict,
+    #[serde(rename = "locked_canon")]
+    #[error("Locked canon cannot be changed by this operation.")]
+    LockedCanon,
+    #[serde(rename = "invalid_proposal")]
+    #[error("The proposal is invalid for its current lifecycle state.")]
+    InvalidProposal,
     #[serde(rename = "storage")]
     #[error("Database operation failed.")]
     Storage,
@@ -41,6 +50,9 @@ impl AppError {
             Self::ArchivedCharacter => "archived_character",
             Self::DuplicateName => "duplicate_name",
             Self::InvalidStatus => "invalid_status",
+            Self::Conflict => "conflict",
+            Self::LockedCanon => "locked_canon",
+            Self::InvalidProposal => "invalid_proposal",
             Self::Storage => "storage",
             Self::Internal => "internal",
         }

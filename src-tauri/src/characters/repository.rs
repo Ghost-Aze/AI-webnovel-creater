@@ -1,6 +1,9 @@
 use crate::{
     db::SharedConnection,
-    domain::character::{Character, CharacterListFilter, CharacterState, CharacterStatus},
+    domain::{
+        character::{Character, CharacterListFilter, CharacterState, CharacterStatus},
+        revision::CanonStatus,
+    },
     error::{AppError, AppResult},
 };
 
@@ -58,7 +61,7 @@ impl CharacterRepository {
         let connection = self.connection.lock()?;
         connection
             .query_row(
-                "SELECT id, project_id, name, summary, role, status, created_at, updated_at
+                "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
                  FROM characters WHERE id = ?1",
                 [id],
                 map_character,
@@ -70,12 +73,12 @@ impl CharacterRepository {
         let connection = self.connection.lock()?;
         let mut statement = if filter.include_archived {
             connection.prepare(
-                "SELECT id, project_id, name, summary, role, status, created_at, updated_at
+                "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
                  FROM characters WHERE project_id = ?1 ORDER BY updated_at DESC",
             )?
         } else {
             connection.prepare(
-                "SELECT id, project_id, name, summary, role, status, created_at, updated_at
+                "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
                  FROM characters WHERE project_id = ?1 AND status = 'active'
                  ORDER BY updated_at DESC",
             )?
@@ -95,7 +98,7 @@ impl CharacterRepository {
         let connection = self.connection.lock()?;
         let existing = connection
             .query_row(
-                "SELECT id, project_id, name, summary, role, status, created_at, updated_at
+                "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
                  FROM characters WHERE id = ?1",
                 [id],
                 map_character,
@@ -125,7 +128,7 @@ impl CharacterRepository {
         if changed == 0 {
             let existing = connection
                 .query_row(
-                    "SELECT id, project_id, name, summary, role, status, created_at, updated_at
+                    "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
                      FROM characters WHERE id = ?1",
                     [id],
                     map_character,
@@ -144,7 +147,7 @@ impl CharacterRepository {
                 "SELECT character_id, current_location, physical_condition, injuries,
                         emotional_state, goals, beliefs, knowledge, secrets_known,
                         current_conflicts, possessions, promises, last_appearance,
-                        current_arc_role, updated_at
+                        current_arc_role, revision, canon_status, updated_at
                  FROM character_states WHERE character_id = ?1",
                 [character_id],
                 map_state,
@@ -217,8 +220,10 @@ fn map_character(row: &rusqlite::Row<'_>) -> rusqlite::Result<Character> {
         summary: row.get(3)?,
         role: row.get(4)?,
         status,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
+        revision: row.get::<_, i64>(6)? as u64,
+        canon_status: parse_canon_status(row.get::<_, String>(7)?)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
     })
 }
 
@@ -238,7 +243,22 @@ fn map_state(row: &rusqlite::Row<'_>) -> rusqlite::Result<CharacterState> {
         promises: row.get(11)?,
         last_appearance: row.get(12)?,
         current_arc_role: row.get(13)?,
-        updated_at: row.get(14)?,
+        revision: row.get::<_, i64>(14)? as u64,
+        canon_status: parse_canon_status(row.get::<_, String>(15)?)?,
+        updated_at: row.get(16)?,
+    })
+}
+
+fn parse_canon_status(value: String) -> rusqlite::Result<CanonStatus> {
+    CanonStatus::try_from(value.as_str()).map_err(|_| {
+        rusqlite::Error::FromSqlConversionFailure(
+            0,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid canon status",
+            )),
+        )
     })
 }
 

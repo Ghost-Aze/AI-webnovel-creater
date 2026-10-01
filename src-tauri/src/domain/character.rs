@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::project::{new_id, normalize_name, now_utc};
+use super::revision::CanonStatus;
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +40,8 @@ pub struct Character {
     pub summary: String,
     pub role: String,
     pub status: CharacterStatus,
+    pub revision: u64,
+    pub canon_status: CanonStatus,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -83,6 +86,8 @@ pub struct CharacterState {
     pub promises: String,
     pub last_appearance: String,
     pub current_arc_role: String,
+    pub revision: u64,
+    pub canon_status: CanonStatus,
     pub updated_at: String,
 }
 
@@ -120,6 +125,8 @@ impl CharacterState {
             promises: String::new(),
             last_appearance: String::new(),
             current_arc_role: String::new(),
+            revision: 0,
+            canon_status: CanonStatus::Canon,
             updated_at: String::new(),
         }
     }
@@ -162,6 +169,8 @@ pub fn build_character(project_id: String, input: CreateCharacterInput) -> AppRe
             .to_string(),
         role: input.role.as_deref().unwrap_or_default().trim().to_string(),
         status: CharacterStatus::Active,
+        revision: 0,
+        canon_status: CanonStatus::Canon,
         created_at: timestamp.clone(),
         updated_at: timestamp,
     })
@@ -211,5 +220,12 @@ mod tests {
         assert_eq!(state.emotional_state, "guarded");
         assert_eq!(state.goals, "Find the gate");
         assert_eq!(state.beliefs, "");
+    }
+
+    #[test]
+    fn character_state_defaults_to_revision_zero_and_canon() {
+        let state = CharacterState::empty("character".to_string());
+        assert_eq!(state.revision, 0);
+        assert_eq!(state.canon_status, CanonStatus::Canon);
     }
 }
