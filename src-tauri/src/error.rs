@@ -89,6 +89,9 @@ impl From<ProviderError> for AppError {
             ProviderError::UnsupportedCapability { .. } => Self::UnsupportedCapability,
             ProviderError::InvalidRequest => Self::InvalidProviderRequest,
             ProviderError::ProviderFailure => Self::ProviderFailure,
+            ProviderError::ProviderAlreadyRegistered | ProviderError::DuplicateModel => {
+                Self::InvalidProviderRequest
+            }
         }
     }
 }

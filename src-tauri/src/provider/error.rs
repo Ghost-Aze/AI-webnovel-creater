@@ -12,6 +12,10 @@ pub enum ProviderError {
     InvalidRequest,
     #[error("provider operation failed")]
     ProviderFailure,
+    #[error("provider is already registered")]
+    ProviderAlreadyRegistered,
+    #[error("model is duplicated within a provider")]
+    DuplicateModel,
 }
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
