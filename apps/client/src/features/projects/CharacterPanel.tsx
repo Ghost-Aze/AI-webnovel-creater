@@ -132,11 +132,15 @@ export function CharacterPanel({
     setError(null);
     setSaved(false);
     try {
-      const updated = await updateCharacter(selectedCharacter.id, {
-        name: selectedCharacter.name,
-        summary: selectedCharacter.summary,
-        role: selectedCharacter.role,
-      });
+      const updated = await updateCharacter(
+        selectedCharacter.id,
+        {
+          name: selectedCharacter.name,
+          summary: selectedCharacter.summary,
+          role: selectedCharacter.role,
+        },
+        selectedCharacter.revision,
+      );
       setCharacters((current) =>
         current.map((character) =>
           character.id === updated.id ? updated : character,
@@ -154,7 +158,7 @@ export function CharacterPanel({
     if (!selectedCharacter || projectArchived || characterLocked) return;
     setError(null);
     try {
-      await archiveCharacter(selectedCharacter.id);
+      await archiveCharacter(selectedCharacter.id, selectedCharacter.revision);
       await loadCharacters();
     } catch (commandError) {
       setError(normalizeCommandError(commandError).message);
@@ -171,7 +175,9 @@ export function CharacterPanel({
     void character_id;
     void updated_at;
     try {
-      setState(await updateCharacterState(selectedCharacter.id, input));
+      setState(
+        await updateCharacterState(selectedCharacter.id, input, state.revision),
+      );
       stateDirtyRef.current = false;
       setSaved(true);
     } catch (commandError) {

@@ -81,8 +81,31 @@ pub fn update_character(
     report("character_update", service.update(&id, input))
 }
 
+pub fn update_character_with_revision(
+    service: &CharacterService,
+    id: String,
+    input: UpdateCharacterInput,
+    expected_revision: u64,
+) -> AppResult<Character> {
+    report(
+        "character_update",
+        service.update_with_revision(&id, input, expected_revision),
+    )
+}
+
 pub fn archive_character(service: &CharacterService, id: String) -> AppResult<Character> {
     report("character_archive", service.archive(&id))
+}
+
+pub fn archive_character_with_revision(
+    service: &CharacterService,
+    id: String,
+    expected_revision: u64,
+) -> AppResult<Character> {
+    report(
+        "character_archive",
+        service.archive_with_revision(&id, expected_revision),
+    )
 }
 
 pub fn get_character_state(
@@ -100,6 +123,18 @@ pub fn update_character_state(
     report(
         "character_state_update",
         service.update_state(&character_id, input),
+    )
+}
+
+pub fn update_character_state_with_revision(
+    service: &CharacterService,
+    character_id: String,
+    input: UpdateCharacterStateInput,
+    expected_revision: u64,
+) -> AppResult<CharacterState> {
+    report(
+        "character_state_update",
+        service.update_state_with_revision(&character_id, input, expected_revision),
     )
 }
 
@@ -247,13 +282,18 @@ mod tauri_commands {
         state: State<'_, AppState>,
         id: String,
         input: UpdateCharacterInput,
+        expected_revision: u64,
     ) -> AppResult<Character> {
-        update_character(&state.character_service, id, input)
+        update_character_with_revision(&state.character_service, id, input, expected_revision)
     }
 
     #[tauri::command]
-    pub fn character_archive(state: State<'_, AppState>, id: String) -> AppResult<Character> {
-        archive_character(&state.character_service, id)
+    pub fn character_archive(
+        state: State<'_, AppState>,
+        id: String,
+        expected_revision: u64,
+    ) -> AppResult<Character> {
+        archive_character_with_revision(&state.character_service, id, expected_revision)
     }
 
     #[tauri::command]
@@ -269,8 +309,14 @@ mod tauri_commands {
         state: State<'_, AppState>,
         character_id: String,
         input: UpdateCharacterStateInput,
+        expected_revision: u64,
     ) -> AppResult<CharacterState> {
-        update_character_state(&state.character_service, character_id, input)
+        update_character_state_with_revision(
+            &state.character_service,
+            character_id,
+            input,
+            expected_revision,
+        )
     }
 
     #[tauri::command]
@@ -440,5 +486,17 @@ mod tests {
         .unwrap();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].revision, 1);
+        let updated = update_character_with_revision(
+            &character_service,
+            character.id.clone(),
+            UpdateCharacterInput {
+                name: "Mira Vale".to_string(),
+                summary: None,
+                role: None,
+            },
+            1,
+        )
+        .unwrap();
+        assert_eq!(updated.revision, 2);
     }
 }

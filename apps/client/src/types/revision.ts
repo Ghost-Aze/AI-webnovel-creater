@@ -27,7 +27,7 @@ export interface Proposal {
   id: string;
   project_id: string;
   entity_type: MemoryEntityType;
-  entity_id: string;
+  entity_id: string | null;
   operation: RevisionOperation;
   payload: Record<string, unknown>;
   base_revision: number;

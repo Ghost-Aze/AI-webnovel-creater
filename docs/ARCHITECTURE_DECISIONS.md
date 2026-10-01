@@ -30,6 +30,14 @@ current Phase 1 implementation.
 - Every canonical mutation is transactional and creates an append-only revision record with actor, timestamp, entity identity and before/after structured values.
 - Undo, restore and merge create new revisions; they do not rewrite history.
 
+### Phase 2 implementation decisions
+
+- `migrations/0003_create_memory_revisions.sql` keeps typed Character and CharacterState snapshots as the current canonical state and adds the generic `memory_revisions` and `memory_proposals` tables.
+- Revision numbers are checked optimistically inside SQLite transactions. A stale base returns `conflict`; a `locked_canon` snapshot rejects update, archive, restore and proposal promotion. An explicit canon-status command is the user-controlled lock/unlock path.
+- Proposal drafts are separate from canonical snapshots. Proposal `entity_id` remains nullable for future create operations; Phase 2 promotes only typed Character update proposals, and promotion changes the snapshot, marks the proposal accepted and appends one `promote` revision atomically.
+- The Tauri command boundary owns history, restore, canon status and proposal lifecycle calls. TypeScript maps `conflict`, `locked_canon` and `invalid_proposal` to safe messages and never exposes SQL or serialized payloads.
+- Character history UI uses immutable revision snapshots for field-level diffs. A failed restore leaves the parent form state untouched so the user can reload or retry deliberately.
+
 ## Character state
 
 - `CharacterState` keeps the current structured snapshot for fast reads.

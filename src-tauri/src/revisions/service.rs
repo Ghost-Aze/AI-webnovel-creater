@@ -70,12 +70,15 @@ impl ProposalService {
         let proposal = self.repository.get_proposal(id)?;
         if proposal.status != ProposalStatus::Draft
             || proposal.entity_type != MemoryEntityType::Character
-            || proposal.entity_id.is_empty()
             || proposal.operation != RevisionOperation::Update
         {
             return Err(AppError::InvalidProposal);
         }
-        let current = self.characters.get(&proposal.entity_id)?;
+        let entity_id = proposal
+            .entity_id
+            .as_deref()
+            .ok_or(AppError::InvalidProposal)?;
+        let current = self.characters.get(entity_id)?;
         if current.canon_status == CanonStatus::LockedCanon {
             return Err(AppError::LockedCanon);
         }
@@ -85,7 +88,7 @@ impl ProposalService {
         let input: UpdateCharacterInput = serde_json::from_value(proposal.payload.clone())
             .map_err(|_| AppError::InvalidProposal)?;
         self.characters.promote_character_update(
-            &proposal.entity_id,
+            entity_id,
             &input.name,
             input.summary.as_deref().unwrap_or_default(),
             input.role.as_deref().unwrap_or_default(),

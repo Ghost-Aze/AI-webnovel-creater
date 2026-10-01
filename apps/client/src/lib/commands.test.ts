@@ -16,6 +16,8 @@ import {
   listMemoryHistory,
   restoreMemory,
   setMemoryCanonStatus,
+  updateCharacter,
+  updateCharacterState,
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 
@@ -111,6 +113,28 @@ describe("typed project commands", () => {
     expect(locked).toMatchObject({
       code: "locked_canon",
       message: "Locked canon cannot be changed.",
+    });
+  });
+
+  it("passes expected revisions for character mutations", async () => {
+    invokeMock.mockClear();
+    invokeMock.mockResolvedValueOnce({ id: "character-id", revision: 2 });
+    await updateCharacter("character-id", { name: "Mira" }, 1);
+    expect(invokeMock).toHaveBeenCalledWith("character_update", {
+      id: "character-id",
+      input: { name: "Mira" },
+      expected_revision: 1,
+    });
+
+    invokeMock.mockResolvedValueOnce({
+      character_id: "character-id",
+      revision: 2,
+    });
+    await updateCharacterState("character-id", { goals: "Find the key" }, 1);
+    expect(invokeMock).toHaveBeenCalledWith("character_state_update", {
+      character_id: "character-id",
+      input: { goals: "Find the key" },
+      expected_revision: 1,
     });
   });
 });

@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS memory_proposals (
     id TEXT PRIMARY KEY NOT NULL,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     entity_type TEXT NOT NULL CHECK (entity_type IN ('character', 'character_state')),
-    entity_id TEXT NOT NULL,
+    entity_id TEXT,
     operation TEXT NOT NULL CHECK (operation IN ('create', 'update', 'archive', 'restore', 'canon_status', 'promote')),
     payload TEXT NOT NULL,
     base_revision INTEGER NOT NULL CHECK (base_revision >= 0),

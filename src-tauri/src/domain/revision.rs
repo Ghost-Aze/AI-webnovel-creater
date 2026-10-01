@@ -128,7 +128,7 @@ pub struct MemoryProposal {
     pub id: String,
     pub project_id: String,
     pub entity_type: MemoryEntityType,
-    pub entity_id: String,
+    pub entity_id: Option<String>,
     pub operation: RevisionOperation,
     pub payload: Value,
     pub base_revision: u64,

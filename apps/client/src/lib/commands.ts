@@ -80,12 +80,23 @@ export function getCharacter(id: string): Promise<Character> {
 export function updateCharacter(
   id: string,
   input: UpdateCharacterInput,
+  expectedRevision: number,
 ): Promise<Character> {
-  return call<Character>("character_update", { id, input });
+  return call<Character>("character_update", {
+    id,
+    input,
+    expected_revision: expectedRevision,
+  });
 }
 
-export function archiveCharacter(id: string): Promise<Character> {
-  return call<Character>("character_archive", { id });
+export function archiveCharacter(
+  id: string,
+  expectedRevision: number,
+): Promise<Character> {
+  return call<Character>("character_archive", {
+    id,
+    expected_revision: expectedRevision,
+  });
 }
 
 export function getCharacterState(
@@ -99,10 +110,12 @@ export function getCharacterState(
 export function updateCharacterState(
   characterId: string,
   input: UpdateCharacterStateInput,
+  expectedRevision: number,
 ): Promise<CharacterState> {
   return call<CharacterState>("character_state_update", {
     character_id: characterId,
     input,
+    expected_revision: expectedRevision,
   });
 }
 

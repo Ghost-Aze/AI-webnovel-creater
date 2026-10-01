@@ -69,7 +69,7 @@ impl RevisionRepository {
             id: new_id(),
             project_id: input.project_id,
             entity_type: input.entity_type,
-            entity_id: input.entity_id.unwrap_or_default(),
+            entity_id: input.entity_id,
             operation: input.operation,
             payload: input.payload,
             base_revision: input.base_revision,

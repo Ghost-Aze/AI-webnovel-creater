@@ -121,6 +121,7 @@ describe("CharacterPanel", () => {
     expect(updateCharacterStateMock).toHaveBeenCalledWith(
       "character-1",
       expect.objectContaining({ current_location: "The river crossing" }),
+      1,
     );
   });
 });
