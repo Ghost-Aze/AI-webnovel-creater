@@ -14,6 +14,7 @@ import {
   compileContext,
   configureProvider,
   generateProvider,
+  getCredentialStoreStatus,
   getCharacterState,
   getProject,
   listModels,
@@ -216,5 +217,17 @@ describe("typed project commands", () => {
     expect(invokeMock).toHaveBeenCalledWith("provider_remove", {
       provider_id: input.descriptor.id,
     });
+
+    const status = {
+      kind: "ephemeral",
+      persistent: false,
+      available: true,
+    } as const;
+    invokeMock.mockResolvedValueOnce(status);
+    await expect(getCredentialStoreStatus()).resolves.toEqual(status);
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "provider_credential_status",
+      {},
+    );
   });
 });

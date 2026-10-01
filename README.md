@@ -1,12 +1,12 @@
 # Webnovel AI Studio
 
-Webnovel AI Studio is a provider-independent workspace for planning and writing long-form fiction. The repository currently contains the Phase 0 foundation: a Tauri 2 shell, React/TypeScript client, Rust application core, and local SQLite persistence for projects.
+Webnovel AI Studio is a provider-independent workspace for planning and writing long-form fiction. The repository contains a Tauri 2 shell, React/TypeScript client, Rust application core, local SQLite persistence, structured character memory, revision safety, provider execution contracts and the Phase 6 provider setup boundary.
 
-## Phase 0 scope
+## Current scope
 
-Phase 0 supports creating, listing, opening, renaming and archiving projects. The project list, responsive workspace shell, typed Tauri command boundary and SQLite migration are implemented. Context-panel entries are placeholders for later phases.
+The current branch supports creating, listing, opening, renaming and archiving projects; structured Character and CharacterState memory; revision history and proposals; an OpenAI-compatible provider adapter; typed provider configure/remove commands; and a `/settings/providers` setup route. The responsive workspace shell, typed Tauri command boundary and SQLite migrations are implemented.
 
-AI providers, prompts, memory entities, semantic retrieval, continuity analysis, cloud novel-data sync and manuscript export are intentionally outside this phase.
+Model routing, orchestration, semantic retrieval, continuity analysis, cloud novel-data sync, native Windows/Android secure credential adapters and manuscript export remain later phases. The cloud/headless runtime intentionally uses process-only credential storage and never writes API keys to SQLite.
 
 ## Local setup
 
@@ -23,6 +23,17 @@ export NPM_CONFIG_CACHE=/workspace/.npm-cache
 npm ci
 cargo fetch
 ```
+
+On Windows PowerShell, if script execution blocks `npm.ps1`, use the command
+shim instead:
+
+```powershell
+npm.cmd ci
+npm.cmd run dev
+```
+
+Use `npm.cmd run tauri:dev` after installing Rust stable, the MSVC toolchain,
+Visual Studio Build Tools with Desktop C++, the Windows SDK and WebView2.
 
 The Rust crate is a workspace member under `src-tauri`. In environments where the shell profile is read-only, set `CARGO_HOME=/workspace/.cargo`, `RUSTUP_HOME=/workspace/.rustup` and prepend `/workspace/.cargo/bin` to `PATH`.
 
@@ -52,4 +63,4 @@ The frontend never opens SQLite. All project operations use the typed client in 
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the data boundaries and [docs/CLOUD_DEVELOPMENT.md](docs/CLOUD_DEVELOPMENT.md) for the Codex Cloud workflow.
 
-Development work stays on `phase0/implementation` or another feature branch. Do not merge this branch into `main` until the changes have been reviewed and the full verification matrix is available.
+Development work stays on a feature branch such as `phase6/implementation`. Do not merge feature branches into `main` until the changes have been reviewed and the full verification matrix is available.

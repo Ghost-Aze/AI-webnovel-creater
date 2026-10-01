@@ -48,6 +48,9 @@ pub enum AppError {
     #[serde(rename = "provider_failure")]
     #[error("The provider operation failed.")]
     ProviderFailure,
+    #[serde(rename = "secure_store_unavailable")]
+    #[error("Secure credential storage is not available on this build.")]
+    SecureStoreUnavailable,
     #[serde(rename = "storage")]
     #[error("Database operation failed.")]
     Storage,
@@ -75,6 +78,7 @@ impl AppError {
             Self::UnsupportedCapability => "unsupported_capability",
             Self::InvalidProviderRequest => "invalid_provider_request",
             Self::ProviderFailure => "provider_failure",
+            Self::SecureStoreUnavailable => "secure_store_unavailable",
             Self::Storage => "storage",
             Self::Internal => "internal",
         }
@@ -91,6 +95,7 @@ impl From<ProviderError> for AppError {
             ProviderError::ProviderFailure => Self::ProviderFailure,
             ProviderError::CredentialNotFound => Self::ProviderFailure,
             ProviderError::CredentialAlreadyRegistered => Self::ProviderFailure,
+            ProviderError::SecureStoreUnavailable => Self::SecureStoreUnavailable,
             ProviderError::ProviderAlreadyRegistered | ProviderError::DuplicateModel => {
                 Self::InvalidProviderRequest
             }

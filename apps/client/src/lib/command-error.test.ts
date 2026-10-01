@@ -12,6 +12,10 @@ describe("provider command errors", () => {
     ],
     ["invalid_provider_request", "The provider request is invalid."],
     ["provider_failure", "The provider operation failed."],
+    [
+      "secure_store_unavailable",
+      "Secure credential storage is not available on this build.",
+    ],
   ])("maps %s without backend details", (code, message) => {
     const error = normalizeCommandError({
       code: code.toUpperCase(),

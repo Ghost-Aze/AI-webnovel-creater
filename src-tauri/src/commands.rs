@@ -12,8 +12,9 @@ use crate::{
     },
     error::AppResult,
     provider::{
-        GenerateRequest, GenerateResponse, ModelProfile, ProviderConfigureInput,
-        ProviderConfigureResult, ProviderDescriptor, ProviderRegistry, ProviderRuntime,
+        CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile,
+        ProviderConfigureInput, ProviderConfigureResult, ProviderDescriptor, ProviderRegistry,
+        ProviderRuntime,
     },
     revisions::service::ProposalService,
     revisions::service::RevisionService,
@@ -277,6 +278,10 @@ pub fn remove_provider(
     )
 }
 
+pub fn credential_store_status(runtime: &ProviderRuntime) -> CredentialStoreStatus {
+    runtime.credential_store_status()
+}
+
 fn report<T>(command: &'static str, result: AppResult<T>) -> AppResult<T> {
     match &result {
         Ok(_) => tracing::debug!(command, "project command completed"),
@@ -517,6 +522,11 @@ mod tauri_commands {
     ) -> AppResult<ProviderDescriptor> {
         remove_provider(&state.provider_runtime, provider_id)
     }
+
+    #[tauri::command]
+    pub fn provider_credential_status(state: State<'_, AppState>) -> CredentialStoreStatus {
+        credential_store_status(&state.provider_runtime)
+    }
 }
 
 #[cfg(feature = "tauri-app")]
@@ -735,6 +745,16 @@ mod tests {
             "configured"
         );
         assert!(runtime.registry().list_providers().unwrap().is_empty());
+    }
+
+    #[test]
+    fn credential_store_status_command_does_not_expose_secret_data() {
+        let runtime = ProviderRuntime::new(Arc::new(EphemeralCredentialStore::new()));
+        let status = credential_store_status(&runtime);
+        assert_eq!(status.kind, crate::provider::CredentialStoreKind::Ephemeral);
+        assert!(!status.persistent);
+        assert!(status.available);
+        assert!(!format!("{status:?}").contains("secret"));
     }
 
     #[test]

@@ -16,6 +16,8 @@ pub enum ProviderError {
     CredentialNotFound,
     #[error("provider credential is already registered")]
     CredentialAlreadyRegistered,
+    #[error("platform secure credential storage is unavailable")]
+    SecureStoreUnavailable,
     #[error("provider is already registered")]
     ProviderAlreadyRegistered,
     #[error("model is duplicated within a provider")]

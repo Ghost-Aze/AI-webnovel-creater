@@ -66,3 +66,11 @@ export interface ProviderConfigureResult {
   descriptor: ProviderDescriptor;
   models: ModelProfile[];
 }
+
+export type CredentialStoreKind = "ephemeral" | "platform_secure";
+
+export interface CredentialStoreStatus {
+  kind: CredentialStoreKind;
+  persistent: boolean;
+  available: boolean;
+}

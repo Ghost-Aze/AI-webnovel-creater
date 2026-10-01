@@ -32,14 +32,14 @@ The Tauri feature is enabled only for the native shell. Headless tests compile t
 
 `projects` is the only canonical Phase 0 entity:
 
-| Column | Type and policy |
-| --- | --- |
-| `id` | UUID text primary key |
-| `name` | required, trimmed text |
+| Column        | Type and policy              |
+| ------------- | ---------------------------- |
+| `id`          | UUID text primary key        |
+| `name`        | required, trimmed text       |
 | `description` | required text, default empty |
-| `status` | `active` or `archived` |
-| `created_at` | UTC ISO-8601 text |
-| `updated_at` | UTC ISO-8601 text |
+| `status`      | `active` or `archived`       |
+| `created_at`  | UTC ISO-8601 text            |
+| `updated_at`  | UTC ISO-8601 text            |
 
 Active projects are listed by most recent `updated_at`. Archived projects are omitted by default and may be requested explicitly. Updates to archived projects are rejected. Archive is idempotent so a repeated action does not corrupt state.
 
@@ -121,10 +121,27 @@ provider registry entry and its credential reference. Windows Credential
 Manager, Android Keystore, provider settings UI and model routing are deferred
 until a platform secure-storage phase.
 
+## Phase 6 provider setup and credential boundary
+
+`CredentialStoreKind` makes the credential persistence choice explicit. The
+cloud and headless test runtime select `Ephemeral`; its secrets live only in
+the process and are cleared on restart. `PlatformSecure` is a typed native
+integration seam for Windows Credential Manager and Android Keystore. Until a
+target adapter is supplied, it returns `secure_store_unavailable` and never
+falls back to SQLite or a plaintext file.
+
+`provider_credential_status` exposes only the selected store kind, persistence
+flag and availability; it never returns a credential or credential ID. The
+React `/settings/providers` route uses the typed `provider_list`, `model_list`,
+`provider_configure` and `provider_remove` commands. The setup form validates
+required fields, submits one typed model profile, clears the API-key field
+after success and renders provider descriptors without secrets. Model routing
+and orchestration remain later phases.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary, while platform credential storage, provider UI, model routing, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary; native secure-store adapters, model routing, orchestration, manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.

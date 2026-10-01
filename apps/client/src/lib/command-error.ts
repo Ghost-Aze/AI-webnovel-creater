@@ -13,6 +13,7 @@ export type CommandErrorCode =
   | "unsupported_capability"
   | "invalid_provider_request"
   | "provider_failure"
+  | "secure_store_unavailable"
   | "storage"
   | "internal";
 
@@ -40,6 +41,8 @@ const messages: Record<Exclude<CommandErrorCode, "validation">, string> = {
   unsupported_capability: "The provider does not support this capability.",
   invalid_provider_request: "The provider request is invalid.",
   provider_failure: "The provider operation failed.",
+  secure_store_unavailable:
+    "Secure credential storage is not available on this build.",
   storage: "The project could not be saved. Try again.",
   internal: "Something went wrong. Try again.",
 };

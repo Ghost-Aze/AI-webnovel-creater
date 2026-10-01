@@ -57,9 +57,34 @@ impl fmt::Debug for SecretValue {
 }
 
 pub trait CredentialStore: Send + Sync {
+    fn kind(&self) -> CredentialStoreKind;
     fn put(&self, id: &CredentialId, value: SecretValue) -> ProviderResult<()>;
     fn get(&self, id: &CredentialId) -> ProviderResult<SecretValue>;
     fn delete(&self, id: &CredentialId) -> ProviderResult<()>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialStoreKind {
+    Ephemeral,
+    PlatformSecure,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CredentialStoreStatus {
+    pub kind: CredentialStoreKind,
+    pub persistent: bool,
+    pub available: bool,
+}
+
+impl CredentialStoreStatus {
+    pub fn for_kind(kind: CredentialStoreKind) -> Self {
+        Self {
+            available: matches!(kind, CredentialStoreKind::Ephemeral),
+            persistent: matches!(kind, CredentialStoreKind::PlatformSecure),
+            kind,
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -74,6 +99,10 @@ impl EphemeralCredentialStore {
 }
 
 impl CredentialStore for EphemeralCredentialStore {
+    fn kind(&self) -> CredentialStoreKind {
+        CredentialStoreKind::Ephemeral
+    }
+
     fn put(&self, id: &CredentialId, value: SecretValue) -> ProviderResult<()> {
         let mut values = self
             .values
@@ -101,6 +130,37 @@ impl CredentialStore for EphemeralCredentialStore {
             .map_err(|_| ProviderError::ProviderFailure)?
             .remove(id);
         Ok(())
+    }
+}
+
+/// Native Windows Credential Manager and Android Keystore adapters implement
+/// this boundary in their platform builds. Keeping the unavailable behavior
+/// typed prevents a silent plaintext fallback while those adapters are absent.
+#[derive(Clone, Default)]
+pub struct PlatformSecureCredentialStore;
+
+impl CredentialStore for PlatformSecureCredentialStore {
+    fn kind(&self) -> CredentialStoreKind {
+        CredentialStoreKind::PlatformSecure
+    }
+
+    fn put(&self, _id: &CredentialId, _value: SecretValue) -> ProviderResult<()> {
+        Err(ProviderError::SecureStoreUnavailable)
+    }
+
+    fn get(&self, _id: &CredentialId) -> ProviderResult<SecretValue> {
+        Err(ProviderError::SecureStoreUnavailable)
+    }
+
+    fn delete(&self, _id: &CredentialId) -> ProviderResult<()> {
+        Err(ProviderError::SecureStoreUnavailable)
+    }
+}
+
+pub fn credential_store_for(kind: CredentialStoreKind) -> Arc<dyn CredentialStore> {
+    match kind {
+        CredentialStoreKind::Ephemeral => Arc::new(EphemeralCredentialStore::new()),
+        CredentialStoreKind::PlatformSecure => Arc::new(PlatformSecureCredentialStore),
     }
 }
 
@@ -152,6 +212,10 @@ impl ProviderRuntime {
 
     pub fn registry(&self) -> ProviderRegistry {
         self.registry.clone()
+    }
+
+    pub fn credential_store_status(&self) -> CredentialStoreStatus {
+        CredentialStoreStatus::for_kind(self.credentials.kind())
     }
 
     pub fn configure(
@@ -315,6 +379,53 @@ mod tests {
     }
 
     #[test]
+    fn exposes_explicit_credential_store_modes_without_plaintext_fallback() {
+        let ephemeral = credential_store_for(CredentialStoreKind::Ephemeral);
+        assert_eq!(ephemeral.kind(), CredentialStoreKind::Ephemeral,);
+        assert_eq!(
+            CredentialStoreStatus::for_kind(ephemeral.kind()),
+            CredentialStoreStatus {
+                available: true,
+                kind: CredentialStoreKind::Ephemeral,
+                persistent: false,
+            }
+        );
+
+        let platform = credential_store_for(CredentialStoreKind::PlatformSecure);
+        let id = CredentialId::new("credential").unwrap();
+        assert_eq!(platform.kind(), CredentialStoreKind::PlatformSecure);
+        assert_eq!(
+            platform.put(&id, SecretValue::new("secret").unwrap()),
+            Err(ProviderError::SecureStoreUnavailable)
+        );
+        assert_eq!(
+            platform.get(&id),
+            Err(ProviderError::SecureStoreUnavailable)
+        );
+        assert_eq!(
+            CredentialStoreStatus::for_kind(platform.kind()),
+            CredentialStoreStatus {
+                available: false,
+                kind: CredentialStoreKind::PlatformSecure,
+                persistent: true,
+            }
+        );
+    }
+
+    #[test]
+    fn runtime_reports_the_selected_store_mode() {
+        let runtime = ProviderRuntime::new(credential_store_for(CredentialStoreKind::Ephemeral));
+        assert_eq!(
+            runtime.credential_store_status(),
+            CredentialStoreStatus {
+                available: true,
+                kind: CredentialStoreKind::Ephemeral,
+                persistent: false,
+            }
+        );
+    }
+
+    #[test]
     fn configures_discovers_and_removes_provider() {
         let store = Arc::new(EphemeralCredentialStore::new());
         let runtime = ProviderRuntime::new(store.clone());
@@ -443,6 +554,10 @@ mod tests {
     }
 
     impl CredentialStore for FailingDeleteStore {
+        fn kind(&self) -> CredentialStoreKind {
+            CredentialStoreKind::Ephemeral
+        }
+
         fn put(&self, id: &CredentialId, value: SecretValue) -> ProviderResult<()> {
             self.inner.put(id, value)
         }

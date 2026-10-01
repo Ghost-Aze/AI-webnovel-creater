@@ -97,7 +97,8 @@ pub fn run() {
             commands::context_compile,
             commands::provider_generate,
             commands::provider_configure,
-            commands::provider_remove
+            commands::provider_remove,
+            commands::provider_credential_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running Webnovel AI Studio");

@@ -26,6 +26,7 @@ import type { CompiledContext, ContextCompileRequest } from "../types/context";
 import type {
   GenerateRequest,
   GenerateResponse,
+  CredentialStoreStatus,
   ModelProfile,
   ProviderConfigureInput,
   ProviderConfigureResult,
@@ -224,6 +225,10 @@ export function removeProvider(
   return call<ProviderDescriptor>("provider_remove", {
     provider_id: providerId,
   });
+}
+
+export function getCredentialStoreStatus(): Promise<CredentialStoreStatus> {
+  return call<CredentialStoreStatus>("provider_credential_status", {});
 }
 
 export function compileContext(

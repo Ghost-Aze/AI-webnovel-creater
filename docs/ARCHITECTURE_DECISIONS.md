@@ -14,7 +14,8 @@ current Phase 1 implementation.
 - Phase 1 establishes structured `Character` and `CharacterState` memory.
 - Phase 3 establishes provider-independent capability contracts, runtime model profiles, an in-memory registry and a deterministic structured-memory Context Compiler. It does not connect a provider.
 - Phase 4 establishes one OpenAI-compatible HTTP adapter, an injected transport boundary, SSE streaming parsing and a typed provider-generate command. It does not persist credentials or add provider settings UI.
-- Phase 5 establishes a process-memory provider runtime and credential-store abstraction. It supports configure/remove lifecycle commands without persisting secrets; platform secure stores and setup UI remain separate.
+- Phase 5 establishes a process-memory provider runtime and credential-store abstraction. It supports configure/remove lifecycle commands without persisting secrets.
+- Phase 6 establishes the typed provider setup route and explicit credential-store status boundary. The cloud/headless runtime uses session-only ephemeral storage; native secure-store adapters remain target-specific follow-up work.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -66,6 +67,7 @@ current Phase 1 implementation.
 - A missing provider capability or retrieval service results in a visible degraded path, not an implicit change to canonical state.
 - `provider_generate` resolves a model through `ProviderRegistry` and calls the async provider contract. The registry remains empty at startup until a later secure-credential setup registers an adapter.
 - `ProviderRuntime` owns the shared registry and a `CredentialStore`. Phase 5's `EphemeralCredentialStore` is intentionally cleared on restart and is only a bridge to platform backends. Configure failures roll back the credential and registry mapping; remove deletes both runtime entries.
+- Phase 6 exposes `CredentialStoreKind` and `provider_credential_status` without returning secrets. The provider settings form uses typed configure/remove commands, validates model budget metadata locally, and clears the API-key input after a successful submission. `PlatformSecure` reports an explicit unavailable result until Windows Credential Manager and Android Keystore adapters are implemented; no plaintext fallback is allowed.
 
 ## Manuscript and chat
 

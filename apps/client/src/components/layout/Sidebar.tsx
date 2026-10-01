@@ -17,6 +17,10 @@ export function Sidebar() {
           <span aria-hidden="true">▦</span>
           Projects
         </NavLink>
+        <NavLink className="nav-link" to="/settings/providers">
+          <span aria-hidden="true">⌘</span>
+          Providers
+        </NavLink>
         <span className="nav-link nav-link-muted" aria-disabled="true">
           <span aria-hidden="true">✦</span>
           Developer Chat
