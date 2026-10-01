@@ -2,6 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { normalizeCommandError } from "./command-error";
 import type {
+  Character,
+  CharacterListFilter,
+  CharacterState,
+  CreateCharacterInput,
+  UpdateCharacterInput,
+  UpdateCharacterStateInput,
+} from "../types/character";
+import type {
   CreateProjectInput,
   Project,
   ProjectListFilter,
@@ -42,4 +50,51 @@ export function updateProject(
 
 export function archiveProject(id: string): Promise<Project> {
   return call<Project>("project_archive", { id });
+}
+
+export function createCharacter(
+  projectId: string,
+  input: CreateCharacterInput,
+): Promise<Character> {
+  return call<Character>("character_create", { project_id: projectId, input });
+}
+
+export function listCharacters(
+  projectId: string,
+  filter: CharacterListFilter = { include_archived: false },
+): Promise<Character[]> {
+  return call<Character[]>("character_list", { project_id: projectId, filter });
+}
+
+export function getCharacter(id: string): Promise<Character> {
+  return call<Character>("character_get", { id });
+}
+
+export function updateCharacter(
+  id: string,
+  input: UpdateCharacterInput,
+): Promise<Character> {
+  return call<Character>("character_update", { id, input });
+}
+
+export function archiveCharacter(id: string): Promise<Character> {
+  return call<Character>("character_archive", { id });
+}
+
+export function getCharacterState(
+  characterId: string,
+): Promise<CharacterState> {
+  return call<CharacterState>("character_state_get", {
+    character_id: characterId,
+  });
+}
+
+export function updateCharacterState(
+  characterId: string,
+  input: UpdateCharacterStateInput,
+): Promise<CharacterState> {
+  return call<CharacterState>("character_state_update", {
+    character_id: characterId,
+    input,
+  });
 }

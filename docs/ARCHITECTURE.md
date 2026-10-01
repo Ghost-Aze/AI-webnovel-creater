@@ -1,25 +1,28 @@
-# Phase 0 architecture
+# Phase 0–1 architecture
 
 The repository is split into a browser-facing client and a provider-independent Rust core. The client is intentionally unaware of SQLite and of any AI provider.
 
 ```text
 apps/client                 React + TypeScript + Vite
-  features/projects         Project list, dialog and workspace routes
+  features/projects         Project and character workspace routes
   lib/commands              typed Tauri invoke client and safe errors
 src-tauri
   commands.rs               Tauri command adapters
   projects/service.rs       validation, normalization and policy
   projects/repository.rs    SQL and row mapping
+  characters/service.rs     character and state policy
+  characters/repository.rs  character and state SQL and row mapping
   db.rs                     SQLite connection and migration runner
   domain/project.rs         provider-independent Project types
+  domain/character.rs       provider-independent Character types
 migrations/                 ordered SQL files
 ```
 
 ## Command boundary
 
-The five commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL or Rust stack traces.
+The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL or Rust stack traces.
 
-The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize one `ProjectService` in Tauri managed state.
+The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize one `ProjectService` and one `CharacterService` in Tauri managed state over the same SQLite connection.
 
 ## Project data model
 
@@ -36,7 +39,13 @@ The Tauri feature is enabled only for the native shell. Headless tests compile t
 
 Active projects are listed by most recent `updated_at`. Archived projects are omitted by default and may be requested explicitly. Updates to archived projects are rejected. Archive is idempotent so a repeated action does not corrupt state.
 
-`migrations/0001_create_projects.sql` creates the table and an index. `db::run_migrations` records the migration name in `_migrations` and skips it on later starts.
+`migrations/0001_create_projects.sql` creates the project table and an index. `migrations/0002_create_characters.sql` adds the `characters` table and the one-to-one `character_states` table. Character state is stored as named columns so each field remains queryable and independently updateable; it is not a JSON blob. `db::run_migrations` records each migration name in `_migrations` and skips it on later starts.
+
+## Phase 1 character memory
+
+`characters` belongs to a project and has a normalized name, summary, role and active/archived status. Names are unique within a project case-insensitively. Character writes require an active project, while reads can still list records for an archived project. Archiving is idempotent and archived characters cannot be edited.
+
+`character_states` has one row per character. The service creates the row on the first state update and merges partial updates into the existing row. The current UI edits location, emotional state, goals and arc role while preserving the remaining structured fields for later slices.
 
 ## UI shell
 
@@ -44,4 +53,4 @@ Active projects are listed by most recent `updated_at`. Archived projects are om
 
 ## Phase boundary
 
-The domain is deliberately limited to `Project`. Character state, narrative memory, provider adapters, orchestration, manuscript revisions, semantic search and sync need their own modules and migrations in later approved phases. They must not be added as JSON blobs or provider-specific fields to this schema.
+The domain currently covers `Project`, `Character` and `CharacterState`. Provider adapters, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice and require separate approved phases. New memory entities must remain structured and provider-independent.

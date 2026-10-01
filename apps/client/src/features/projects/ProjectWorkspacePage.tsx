@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { normalizeCommandError } from "../../lib/command-error";
 import { archiveProject, getProject, updateProject } from "../../lib/commands";
 import type { Project } from "../../types/project";
+import { CharacterPanel } from "./CharacterPanel";
 
 export function ProjectWorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -163,14 +164,14 @@ export function ProjectWorkspacePage() {
             )}
           </form>
         </div>
-        <div className="workspace-placeholder">
-          <p className="eyebrow">Next steps</p>
-          <h2>Build the foundation</h2>
-          <p>
-            Characters, arcs and manuscript tools will live here as the studio
-            grows.
-          </p>
-          <span className="phase-chip">Available in Phase 1</span>
+        <div className="workspace-side-stack">
+          <CharacterPanel projectId={project.id} projectArchived={archived} />
+          <div className="workspace-placeholder">
+            <p className="eyebrow">Next steps</p>
+            <h2>Build the foundation</h2>
+            <p>Arcs and manuscript tools will live here as the studio grows.</p>
+            <span className="phase-chip">Coming next</span>
+          </div>
         </div>
       </div>
     </section>

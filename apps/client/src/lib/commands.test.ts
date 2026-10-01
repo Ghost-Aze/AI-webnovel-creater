@@ -8,7 +8,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
 }));
 
-import { createProject, getProject } from "./commands";
+import {
+  createCharacter,
+  createProject,
+  getCharacterState,
+  getProject,
+} from "./commands";
 
 describe("typed project commands", () => {
   it("returns the exact project shape from the command boundary", async () => {
@@ -43,5 +48,20 @@ describe("typed project commands", () => {
       message: "The project could not be saved. Try again.",
     });
     expect((error as Error).message).not.toContain("secret");
+  });
+
+  it("uses the Rust command argument names for character calls", async () => {
+    invokeMock.mockResolvedValueOnce({ id: "character-id" });
+    await createCharacter("project-id", { name: "Mara Voss" });
+    expect(invokeMock).toHaveBeenCalledWith("character_create", {
+      project_id: "project-id",
+      input: { name: "Mara Voss" },
+    });
+
+    invokeMock.mockResolvedValueOnce({ character_id: "character-id" });
+    await getCharacterState("character-id");
+    expect(invokeMock).toHaveBeenCalledWith("character_state_get", {
+      character_id: "character-id",
+    });
   });
 });

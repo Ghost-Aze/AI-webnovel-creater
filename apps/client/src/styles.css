@@ -677,11 +677,127 @@ p {
 }
 
 .workspace-primary,
-.workspace-placeholder {
+.workspace-placeholder,
+.character-panel {
   padding: 23px;
   border: 1px solid var(--line);
   border-radius: 11px;
   background: rgba(18, 23, 34, 0.62);
+}
+
+.workspace-side-stack {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.character-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.character-panel-header h2 {
+  font-size: 18px;
+}
+
+.button-small {
+  padding: 8px 11px;
+  font-size: 10px;
+}
+
+.character-empty {
+  display: grid;
+  gap: 15px;
+  justify-items: start;
+  padding: 15px 0 2px;
+}
+
+.character-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.character-layout {
+  display: grid;
+  grid-template-columns: minmax(115px, 0.42fr) minmax(0, 1fr);
+  gap: 17px;
+}
+
+.character-list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.character-list-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(9, 13, 21, 0.35);
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.character-list-item:hover,
+.character-list-item.is-selected {
+  border-color: rgba(169, 151, 255, 0.4);
+  background: rgba(169, 151, 255, 0.08);
+}
+
+.character-list-item strong {
+  overflow: hidden;
+  color: #e9ebf4;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-list-item span {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-editor {
+  min-width: 0;
+}
+
+.character-form,
+.character-state-form {
+  display: grid;
+  gap: 13px;
+}
+
+.character-state-form {
+  margin-top: 28px;
+  padding-top: 23px;
+  border-top: 1px solid var(--line);
+}
+
+.character-form .section-heading,
+.character-state-form .section-heading {
+  margin-bottom: 2px;
+}
+
+.character-form h3,
+.character-state-form h3 {
+  font-size: 15px;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .section-heading {
@@ -854,7 +970,16 @@ p {
   }
 
   .workspace-primary,
-  .workspace-placeholder {
+  .workspace-placeholder,
+  .character-panel {
     padding: 18px;
+  }
+
+  .character-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .character-list {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 }

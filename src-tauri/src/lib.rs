@@ -7,6 +7,7 @@ pub mod projects;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub character_service: characters::service::CharacterService,
     pub project_service: projects::service::ProjectService,
 }
 
@@ -29,9 +30,13 @@ pub fn run() {
             let database =
                 db::open(data_dir.join("webnovel.sqlite")).map_err(|error| error.to_string())?;
             let service = projects::service::ProjectService::new(
-                projects::repository::ProjectRepository::new(database),
+                projects::repository::ProjectRepository::new(database.clone()),
+            );
+            let character_service = characters::service::CharacterService::new(
+                characters::repository::CharacterRepository::new(database),
             );
             app.manage(AppState {
+                character_service,
                 project_service: service,
             });
             Ok(())
@@ -41,7 +46,14 @@ pub fn run() {
             commands::project_list,
             commands::project_get,
             commands::project_update,
-            commands::project_archive
+            commands::project_archive,
+            commands::character_create,
+            commands::character_list,
+            commands::character_get,
+            commands::character_update,
+            commands::character_archive,
+            commands::character_state_get,
+            commands::character_state_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running Webnovel AI Studio");
