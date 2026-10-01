@@ -71,31 +71,26 @@ impl ProjectRepository {
         updated_at: &str,
     ) -> AppResult<Project> {
         let connection = self.connection.lock()?;
-        let changed = connection.execute(
+        let existing = connection
+            .query_row(
+                "SELECT id, name, description, status, created_at, updated_at
+                 FROM projects WHERE id = ?1",
+                [id],
+                map_project,
+            )
+            .map_err(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => AppError::NotFound,
+                other => other.into(),
+            })?;
+        if existing.status == ProjectStatus::Archived {
+            return Err(AppError::ArchivedProject);
+        }
+
+        connection.execute(
             "UPDATE projects SET name = ?1, description = ?2, updated_at = ?3
              WHERE id = ?4 AND status = 'active'",
             rusqlite::params![name, description, updated_at, id],
         )?;
-        if changed == 0 {
-            let _: Project = connection
-                .query_row(
-                    "SELECT id, name, description, status, created_at, updated_at
-                     FROM projects WHERE id = ?1",
-                    [id],
-                    map_project,
-                )
-                .map_err(|error| match error {
-                    rusqlite::Error::QueryReturnedNoRows => AppError::NotFound,
-                    other => other.into(),
-                })
-                .and_then(|project| {
-                    if project.status == ProjectStatus::Archived {
-                        Err(AppError::ArchivedProject)
-                    } else {
-                        Err(AppError::Storage)
-                    }
-                })?;
-        }
         drop(connection);
         self.get(id)
     }

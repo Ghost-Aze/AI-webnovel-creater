@@ -64,6 +64,17 @@ fn project_lifecycle_supports_create_get_update_and_archive() {
     assert_eq!(updated.description, "A city waits for dawn.");
     assert_ne!(updated.updated_at, created.updated_at);
 
+    let unchanged = project_service
+        .update(
+            &created.id,
+            UpdateProjectInput {
+                name: updated.name.clone(),
+                description: Some(updated.description.clone()),
+            },
+        )
+        .unwrap();
+    assert_eq!(unchanged.name, updated.name);
+
     let archived = project_service.archive(&created.id).unwrap();
     assert_eq!(archived.status, ProjectStatus::Archived);
     assert_eq!(project_service.get(&created.id).unwrap(), archived);
