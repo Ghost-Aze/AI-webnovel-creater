@@ -1,3 +1,4 @@
+pub mod characters;
 pub mod commands;
 pub mod db;
 pub mod domain;

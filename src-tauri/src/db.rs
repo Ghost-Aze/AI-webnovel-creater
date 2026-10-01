@@ -7,8 +7,21 @@ use rusqlite::Connection;
 
 use crate::error::{AppError, AppResult};
 
-const MIGRATION_NAME: &str = "0001_create_projects.sql";
-const MIGRATION_SQL: &str = include_str!("../../migrations/0001_create_projects.sql");
+struct Migration {
+    name: &'static str,
+    sql: &'static str,
+}
+
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        name: "0001_create_projects.sql",
+        sql: include_str!("../../migrations/0001_create_projects.sql"),
+    },
+    Migration {
+        name: "0002_create_characters.sql",
+        sql: include_str!("../../migrations/0002_create_characters.sql"),
+    },
+];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;
 
@@ -25,6 +38,7 @@ pub fn in_memory() -> AppResult<SharedConnection> {
 }
 
 pub fn run_migrations(connection: &Connection) -> AppResult<()> {
+    connection.execute_batch("PRAGMA foreign_keys = ON;")?;
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS _migrations (
             name TEXT PRIMARY KEY NOT NULL,
@@ -32,22 +46,24 @@ pub fn run_migrations(connection: &Connection) -> AppResult<()> {
         );",
     )?;
 
-    let already_applied: Option<String> = connection
-        .query_row(
-            "SELECT name FROM _migrations WHERE name = ?1",
-            [MIGRATION_NAME],
-            |row| row.get(0),
-        )
-        .optional()?;
+    for migration in MIGRATIONS {
+        let already_applied: Option<String> = connection
+            .query_row(
+                "SELECT name FROM _migrations WHERE name = ?1",
+                [migration.name],
+                |row| row.get(0),
+            )
+            .optional()?;
 
-    if already_applied.is_none() {
-        let transaction = connection.unchecked_transaction()?;
-        transaction.execute_batch(MIGRATION_SQL)?;
-        transaction.execute(
-            "INSERT INTO _migrations (name, applied_at) VALUES (?1, ?2)",
-            rusqlite::params![MIGRATION_NAME, crate::domain::project::now_utc()],
-        )?;
-        transaction.commit()?;
+        if already_applied.is_none() {
+            let transaction = connection.unchecked_transaction()?;
+            transaction.execute_batch(migration.sql)?;
+            transaction.execute(
+                "INSERT INTO _migrations (name, applied_at) VALUES (?1, ?2)",
+                rusqlite::params![migration.name, crate::domain::project::now_utc()],
+            )?;
+            transaction.commit()?;
+        }
     }
 
     Ok(())
