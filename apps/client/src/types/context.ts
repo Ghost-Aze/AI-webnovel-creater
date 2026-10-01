@@ -11,11 +11,7 @@ export type ContextTask =
   | { custom: string };
 
 export type ContextBlockKind =
-  | "system"
-  | "project"
-  | "character"
-  | "character_state"
-  | "working_memory";
+  "system" | "project" | "character" | "character_state" | "working_memory";
 
 export interface WorkingMemoryBlock {
   id: string;

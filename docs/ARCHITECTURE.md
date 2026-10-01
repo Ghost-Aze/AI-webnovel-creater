@@ -14,6 +14,8 @@ src-tauri
   projects/repository.rs    SQL and row mapping
   characters/service.rs     character and state policy
   characters/repository.rs  character and state SQL and row mapping
+  provider/                 capability-aware provider contracts and registry
+  context/                  budgeted structured-memory compiler and source
   db.rs                     SQLite connection and migration runner
   domain/project.rs         provider-independent Project types
   domain/character.rs       provider-independent Character types
@@ -22,7 +24,7 @@ migrations/                 ordered SQL files
 
 ## Command boundary
 
-The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL or Rust stack traces.
+The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; provider/model discovery and context preview remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
 
 The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize one `ProjectService` and one `CharacterService` in Tauri managed state over the same SQLite connection.
 
@@ -59,10 +61,33 @@ Unaccepted changes live in `memory_proposals`, not in canonical tables. `Proposa
 
 The command boundary exposes `memory_history_list`, `memory_restore`, `memory_set_canon_status` and the proposal lifecycle commands. React consumes these through typed client functions. `RevisionHistoryPanel` renders metadata and field-level diffs, preserves parent form input when a restore conflicts, and disables edits/restores for locked canon.
 
+## Phase 3 provider and context foundation
+
+`src-tauri/src/provider` defines the provider-independent async `AIProvider`
+contract, capability metadata, runtime `ModelProfile` values and an in-memory
+`ProviderRegistry`. Profiles and credentials are not canonical SQLite data. The
+registry rejects duplicate provider/model identities and resolves a model before
+any future provider call. Streaming and embedding operations have typed
+unsupported-capability results; Phase 3 does not register a real network or
+local-model adapter.
+
+`src-tauri/src/context` defines `ContextSource`, `ContextCompileRequest` and a
+deterministic `ContextCompiler`. The service-backed source reads only typed
+Project, explicitly selected Character records and optional CharacterState
+records. Caller-supplied working blocks are transient input. The compiler uses
+the selected model's context window, output reserve and safety margin to produce
+ordered blocks, truncation metadata and omissions. It never loads all project
+memory or chat history and never mutates canonical memory.
+
+The React client mirrors provider and context serde types in `types/provider.ts`
+and `types/context.ts`; no provider SDK or SQL access enters the client. Future
+orchestration, semantic retrieval, credentials and provider adapters must use
+these boundaries and remain separate phases.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Provider adapters, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice and require separate approved phases. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation, while real provider adapters, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice. New memory entities must remain structured and provider-independent.

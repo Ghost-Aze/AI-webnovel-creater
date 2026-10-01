@@ -22,14 +22,8 @@ import type {
   ProjectListFilter,
   UpdateProjectInput,
 } from "../types/project";
-import type {
-  CompiledContext,
-  ContextCompileRequest,
-} from "../types/context";
-import type {
-  ModelProfile,
-  ProviderDescriptor,
-} from "../types/provider";
+import type { CompiledContext, ContextCompileRequest } from "../types/context";
+import type { ModelProfile, ProviderDescriptor } from "../types/provider";
 
 async function call<T>(
   command: string,

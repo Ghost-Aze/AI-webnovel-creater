@@ -1,6 +1,6 @@
 # Phase 3 Provider Abstraction and Context Compiler Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a provider-independent Rust abstraction and deterministic structured-memory Context Compiler without connecting to a real AI provider.
 
@@ -52,27 +52,27 @@
 - `AIProvider` async trait: `descriptor()`, `capabilities()`, `list_models()`, `generate()`, `stream()`, `embed()`; stream/embed default behavior returns `UnsupportedCapability` when not implemented.
 - `ProviderError` variants map to safe `AppError` codes `provider_not_found`, `model_not_found`, `unsupported_capability`, `invalid_provider_request` and `provider_failure`.
 
-- [ ] **Step 1: Write failing provider contract tests**
+- [x] **Step 1: Write failing provider contract tests**
 
   Add tests for model profile rejection when ids are blank or `context_window_tokens <= default_output_tokens`, serde round trips for capabilities and model refs, and safe provider-error code mapping that does not include request text.
 
-- [ ] **Step 2: Run focused tests to verify they fail**
+- [x] **Step 2: Run focused tests to verify they fail**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test provider::`
 
   Expected: FAIL because the provider module, dependency and error variants do not exist.
 
-- [ ] **Step 3: Implement the typed provider contracts**
+- [x] **Step 3: Implement the typed provider contracts**
 
   Add `async-trait` and direct `futures-core` dependencies. Keep provider requests owned, make `ProviderStream` a boxed `futures_core::Stream`, validate ids/context/output values in `ModelProfile::validate`, and expose only safe error codes through `AppError`.
 
-- [ ] **Step 4: Run focused tests to verify they pass**
+- [x] **Step 4: Run focused tests to verify they pass**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test provider::`
 
   Expected: all provider type, validation and safe-error tests pass.
 
-- [ ] **Step 5: Commit the provider contract slice**
+- [x] **Step 5: Commit the provider contract slice**
 
   ```bash
   git add src-tauri/src/provider src-tauri/src/lib.rs src-tauri/src/error.rs src-tauri/Cargo.toml Cargo.lock
@@ -92,27 +92,27 @@
 - `ResolvedModel { provider: Arc<dyn AIProvider>, profile: ModelProfile }`.
 - `MockProvider::new(descriptor, profiles) -> Self` records a safe generation call count and returns deterministic `GenerateResponse`; stream/embed return `UnsupportedCapability` unless the test explicitly enables those capabilities.
 
-- [ ] **Step 1: Write failing registry and mock tests**
+- [x] **Step 1: Write failing registry and mock tests**
 
   Add tests named `rejects_duplicate_provider_id`, `lists_and_resolves_models`, `returns_safe_not_found_errors`, `mock_generate_is_deterministic`, and `mock_unsupported_operations_do_not_execute`.
 
-- [ ] **Step 2: Run focused tests to verify they fail**
+- [x] **Step 2: Run focused tests to verify they fail**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test provider::`
 
   Expected: FAIL because registry storage, resolution and mock provider behavior are absent.
 
-- [ ] **Step 3: Implement registry and mock provider**
+- [x] **Step 3: Implement registry and mock provider**
 
   Store providers in `Arc<RwLock<BTreeMap<String, Arc<dyn AIProvider>>>>`, reject duplicate provider ids and duplicate model ids within a provider, return sorted deterministic lists, and keep the mock provider behind test-only construction so production runtime has no fake provider.
 
-- [ ] **Step 4: Run focused tests to verify they pass**
+- [x] **Step 4: Run focused tests to verify they pass**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test provider::`
 
   Expected: all registry, resolution, deterministic mock and unsupported-capability tests pass.
 
-- [ ] **Step 5: Commit the registry slice**
+- [x] **Step 5: Commit the registry slice**
 
   ```bash
   git add src-tauri/src/provider
@@ -139,27 +139,27 @@
 - `ContextOmission { source_id: Option<String>, kind: ContextBlockKind, reason: OmissionReason }` and `CompiledContext { project_id, task, model, blocks, omissions, input_budget_tokens, estimated_input_tokens }`.
 - `ContextCompiler<E>::compile(&self, request: ContextCompileRequest, profile: &ModelProfile, source: &dyn ContextSource) -> AppResult<CompiledContext>`; `ContextSource` is declared by the context module and supplies typed Project, Character and CharacterState values.
 
-- [ ] **Step 1: Write failing compiler tests**
+- [x] **Step 1: Write failing compiler tests**
 
   Add tests named `rejects_empty_system_instruction`, `rejects_zero_or_insufficient_budget`, `preserves_priority_while_truncating_lower_blocks`, `reports_omitted_blocks`, `includes_explicit_working_memory_only`, and `uses_model_window_for_input_budget`. Assert exact budget arithmetic, UTF-8-safe truncation, source ids and omission reasons.
 
-- [ ] **Step 2: Run focused tests to verify they fail**
+- [x] **Step 2: Run focused tests to verify they fail**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test context::`
 
   Expected: FAIL because context request, block, estimator and compiler types do not exist.
 
-- [ ] **Step 3: Implement the pure compiler**
+- [x] **Step 3: Implement the pure compiler**
 
   Build blocks in this order: system, project, selected characters, selected states, working memory. Compute `context_window_tokens - output_reserve - safety_margin` with checked arithmetic, include complete blocks when they fit, prefix-truncate a block to the remaining character budget when possible, and add every omitted/truncated item to metadata. Do not perform SQL or provider calls in this module.
 
-- [ ] **Step 4: Run focused tests to verify they pass**
+- [x] **Step 4: Run focused tests to verify they pass**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test context::`
 
   Expected: all validation, ordering, budget and omission tests pass.
 
-- [ ] **Step 5: Commit the compiler slice**
+- [x] **Step 5: Commit the compiler slice**
 
   ```bash
   git add src-tauri/src/context src-tauri/src/lib.rs
@@ -179,27 +179,27 @@
 - `ContextSource::load_character(&self, project_id: &str, character_id: &str) -> AppResult<Character>`; it verifies project ownership before returning.
 - `ContextSource::load_character_state(&self, character_id: &str) -> AppResult<CharacterState>`; missing physical state returns the existing empty typed state.
 
-- [ ] **Step 1: Write failing SQLite-backed context tests**
+- [x] **Step 1: Write failing SQLite-backed context tests**
 
   Add `context_flow.rs` tests named `compiles_selected_character_and_state`, `rejects_character_from_another_project`, `does_not_load_unselected_characters`, and `does_not_persist_or_mutate_memory`. Create projects/characters through existing services, compile a request, and assert only selected structured records appear.
 
-- [ ] **Step 2: Run focused integration tests to verify they fail**
+- [x] **Step 2: Run focused integration tests to verify they fail**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test --test context_flow -- --nocapture`
 
   Expected: FAIL because the service-backed source and context module registration do not exist.
 
-- [ ] **Step 3: Implement `ServiceContextSource`**
+- [x] **Step 3: Implement `ServiceContextSource`**
 
   Delegate to existing services, compare each Character's `project_id` with the request project, return `AppError::NotFound` for a mismatch, and preserve the empty-state behavior already used by `CharacterService`.
 
-- [ ] **Step 4: Run focused integration tests to verify they pass**
+- [x] **Step 4: Run focused integration tests to verify they pass**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test --test context_flow -- --nocapture`
 
   Expected: all selected-memory, cross-project, omission and read-only assertions pass.
 
-- [ ] **Step 5: Commit the source integration slice**
+- [x] **Step 5: Commit the source integration slice**
 
   ```bash
   git add src-tauri/src/context src-tauri/tests/context_flow.rs
@@ -223,31 +223,31 @@
 - TypeScript exports `ProviderDescriptor`, `ProviderCapabilities`, `ModelProfile`, `ModelRef`, `ContextCompileRequest`, `ContextBlock`, `ContextOmission`, `CompiledContext` and `WorkingMemoryBlock` matching Rust serde names.
 - Client functions `listProviders()`, `listModels(providerId?: string)`, and `compileContext(input)` call `invoke` through the existing normalizer.
 
-- [ ] **Step 1: Write failing command/client contract tests**
+- [x] **Step 1: Write failing command/client contract tests**
 
   Assert Rust helper delegation and registration, frontend payloads `{ provider_id }` and `{ request }`, nullable provider filtering, and safe normalization for `provider_not_found`, `model_not_found`, `unsupported_capability`, `invalid_provider_request` and `provider_failure`.
 
-- [ ] **Step 2: Run focused tests to verify they fail**
+- [x] **Step 2: Run focused tests to verify they fail**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test commands::tests` and `npm test -- --run src/lib/commands.test.ts src/lib/command-error.test.ts`
 
   Expected: FAIL because provider/context commands, frontend types and error mappings are absent.
 
-- [ ] **Step 3: Implement Rust command adapters and managed state**
+- [x] **Step 3: Implement Rust command adapters and managed state**
 
   Add `provider_registry`, `context_compiler` and `context_source` to `AppState`; initialize an empty registry and service-backed source in native setup; register all three commands in `generate_handler![]`. `context_compile` resolves the requested model through the registry before compiling and never logs request content.
 
-- [ ] **Step 4: Implement TypeScript types, invoke functions and safe errors**
+- [x] **Step 4: Implement TypeScript types, invoke functions and safe errors**
 
   Mirror serde field names exactly, keep `source_id` and optional provider filtering nullable, and map provider failures to short user-facing messages without raw details. Do not add a provider UI in this phase.
 
-- [ ] **Step 5: Run focused tests to verify they pass**
+- [x] **Step 5: Run focused tests to verify they pass**
 
   Run: `CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH cargo test commands::tests` and `npm test -- --run src/lib/commands.test.ts src/lib/command-error.test.ts`
 
   Expected: all command registration, payload and safe-error tests pass.
 
-- [ ] **Step 6: Commit the boundary slice**
+- [x] **Step 6: Commit the boundary slice**
 
   ```bash
   git add src-tauri/src/commands.rs src-tauri/src/lib.rs apps/client/src/lib apps/client/src/types
@@ -266,11 +266,11 @@
 - Architecture docs describe provider registry/profile boundaries, capability-safe errors, ContextSource selection and budget metadata.
 - The completed plan records task checkboxes, commit ids and environment-limited native checks.
 
-- [ ] **Step 1: Update architecture documentation**
+- [x] **Step 1: Update architecture documentation**
 
   Add the Phase 3 provider/context modules and explicitly keep real adapters, orchestration, semantic retrieval and credentials outside this phase.
 
-- [ ] **Step 2: Run the complete verification matrix**
+- [x] **Step 2: Run the complete verification matrix**
 
   Run:
 
@@ -287,21 +287,34 @@
 
   Expected: frontend and headless Rust checks pass. Native `cargo check --features tauri-app` may remain blocked by the documented cloud `glib` prerequisite and must be reported with its exact result.
 
-- [ ] **Step 3: Self-review branch and generated files**
+- [x] **Step 3: Self-review branch and generated files**
 
   Run `git diff --check`, inspect `git status --short`, confirm no secrets/node_modules/targets/generated native output are tracked, and verify `main` remains untouched.
 
-- [ ] **Step 4: Commit documentation and verification record**
+- [x] **Step 4: Commit documentation and verification record**
 
   ```bash
   git add docs/ARCHITECTURE.md docs/ARCHITECTURE_DECISIONS.md docs/superpowers/plans/2026-10-01-webnovel-phase3-provider-context.md
   git commit -m "docs: finalize provider context phase"
   ```
 
-- [ ] **Step 5: Push the implementation branch**
+- [x] **Step 5: Push the implementation branch**
 
   ```bash
   git push -u origin phase3/implementation
   ```
 
   Keep the branch separate from `main`; do not merge without a new explicit integration request.
+
+
+## Completion record
+
+- `af407aa` — provider domain contracts, async capability-aware interface and safe error mapping.
+- `20b689b` — in-memory provider registry and deterministic mock provider behavior.
+- `118b84b` — deterministic Context Compiler, token estimator, budget and omission metadata.
+- `b016901` — service-backed ContextSource and SQLite integration tests.
+- `214681f` / `a629f25` — Tauri/TypeScript boundary, safe frontend errors and Rust formatting.
+- `bbddbd8` — architecture documentation and final verification record.
+- Frontend verification: `npm run format:check`, `npm run typecheck`, `npm run lint`, `npm test -- --run` (24 tests), and `npm run build` passed.
+- Rust verification: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` (28 unit tests, 21 integration tests, 0 doc tests) passed.
+- Native `cargo check --features tauri-app` remains environment-limited because the cloud image lacks `glib-2.0 >= 2.70`; no code-level Tauri error was observed before the system dependency check.
