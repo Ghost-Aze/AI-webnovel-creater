@@ -8,6 +8,9 @@ const getCharacterStateMock = vi.hoisted(() => vi.fn());
 const updateCharacterMock = vi.hoisted(() => vi.fn());
 const updateCharacterStateMock = vi.hoisted(() => vi.fn());
 const archiveCharacterMock = vi.hoisted(() => vi.fn());
+const listMemoryHistoryMock = vi.hoisted(() => vi.fn());
+const restoreMemoryMock = vi.hoisted(() => vi.fn());
+const setMemoryCanonStatusMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
   listCharacters: listCharactersMock,
@@ -16,6 +19,9 @@ vi.mock("../lib/commands", () => ({
   updateCharacter: updateCharacterMock,
   updateCharacterState: updateCharacterStateMock,
   archiveCharacter: archiveCharacterMock,
+  listMemoryHistory: listMemoryHistoryMock,
+  restoreMemory: restoreMemoryMock,
+  setMemoryCanonStatus: setMemoryCanonStatusMock,
 }));
 
 import { CharacterPanel } from "../features/projects/CharacterPanel";
@@ -29,6 +35,8 @@ const character = {
   status: "active" as const,
   created_at: "2026-10-01T00:00:00Z",
   updated_at: "2026-10-01T00:00:00Z",
+  revision: 1,
+  canon_status: "canon" as const,
 };
 
 const state = {
@@ -47,6 +55,8 @@ const state = {
   last_appearance: "",
   current_arc_role: "Reluctant guide",
   updated_at: "2026-10-01T00:00:00Z",
+  revision: 1,
+  canon_status: "canon" as const,
 };
 
 describe("CharacterPanel", () => {
@@ -56,6 +66,9 @@ describe("CharacterPanel", () => {
     getCharacterStateMock.mockResolvedValue(state);
     updateCharacterMock.mockResolvedValue(character);
     updateCharacterStateMock.mockResolvedValue(state);
+    listMemoryHistoryMock.mockResolvedValue([]);
+    restoreMemoryMock.mockResolvedValue({ revision: 2 });
+    setMemoryCanonStatusMock.mockResolvedValue({ revision: 2 });
   });
 
   it("loads a character profile and continuity state", async () => {
@@ -71,6 +84,14 @@ describe("CharacterPanel", () => {
       await screen.findByDisplayValue("Reach the river before dawn."),
     ).toBeInTheDocument();
     expect(getCharacterStateMock).toHaveBeenCalledWith("character-1");
+    expect(listMemoryHistoryMock).toHaveBeenCalledWith(
+      "character",
+      "character-1",
+    );
+    expect(listMemoryHistoryMock).toHaveBeenCalledWith(
+      "character_state",
+      "character-1",
+    );
   });
 
   it("validates a new character before calling the backend", async () => {
@@ -90,6 +111,7 @@ describe("CharacterPanel", () => {
     const user = userEvent.setup();
     render(<CharacterPanel projectId="project-1" projectArchived={false} />);
     await screen.findByRole("heading", { name: "Mara Voss" });
+    await screen.findByDisplayValue("North station");
     const location = screen.getByLabelText("Current location");
     await user.clear(location);
     await user.type(location, "The river crossing");

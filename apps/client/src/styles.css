@@ -817,6 +817,127 @@ p {
   font-size: 11px;
 }
 
+.revision-history {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.revision-history-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revision-history-heading h4 {
+  margin-top: 3px;
+  color: #e9ebf4;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.canon-status {
+  padding: 4px 7px;
+  border: 1px solid rgba(131, 214, 169, 0.35);
+  border-radius: 4px;
+  color: #83d6a9;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.canon-status-locked_canon {
+  border-color: rgba(255, 184, 184, 0.4);
+  color: #ffb8b8;
+}
+
+.revision-history-list {
+  display: grid;
+  gap: 5px;
+}
+
+.revision-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: rgba(9, 13, 21, 0.35);
+  color: var(--muted);
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.revision-history-item:hover,
+.revision-history-item.is-selected {
+  border-color: rgba(169, 151, 255, 0.4);
+  background: rgba(169, 151, 255, 0.08);
+  color: #e9ebf4;
+}
+
+.revision-history-item small {
+  color: #7e899e;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.revision-history-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.revision-metadata,
+.revision-history-empty,
+.revision-diff-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.revision-diff {
+  display: grid;
+  gap: 7px;
+}
+
+.revision-diff-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.35fr) minmax(0, 0.65fr);
+  gap: 4px 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(126, 137, 158, 0.18);
+  border-radius: 5px;
+  background: rgba(9, 13, 21, 0.24);
+  font-size: 10px;
+}
+
+.revision-diff-row strong {
+  grid-row: span 2;
+  color: #dce0eb;
+  font-weight: 600;
+}
+
+.revision-diff-row del {
+  color: #ffb8b8;
+  text-decoration-color: rgba(255, 184, 184, 0.55);
+}
+
+.revision-diff-row ins {
+  color: #83d6a9;
+  text-decoration: none;
+}
+
+.revision-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .project-form .button {
   margin-top: 4px;
 }

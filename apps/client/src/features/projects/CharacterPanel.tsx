@@ -21,6 +21,7 @@ import type {
   CreateCharacterInput,
   UpdateCharacterStateInput,
 } from "../../types/character";
+import { RevisionHistoryPanel } from "./RevisionHistoryPanel";
 
 const emptyState: CharacterState = {
   character_id: "",
@@ -61,10 +62,13 @@ export function CharacterPanel({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const stateDirtyRef = useRef(false);
+  const stateInteractionRef = useRef(false);
 
   const selectedCharacter = characters.find(
     (character) => character.id === selectedId,
   );
+  const characterLocked = selectedCharacter?.canon_status === "locked_canon";
+  const stateLocked = state.canon_status === "locked_canon";
 
   const loadCharacters = useCallback(async () => {
     setIsLoading(true);
@@ -95,15 +99,23 @@ export function CharacterPanel({
   useEffect(() => {
     if (!selectedId) {
       stateDirtyRef.current = false;
+      stateInteractionRef.current = false;
       setState(emptyState);
       return;
     }
     let cancelled = false;
     stateDirtyRef.current = false;
+    stateInteractionRef.current = false;
     setSaved(false);
     void getCharacterState(selectedId)
       .then((loaded) => {
-        if (!cancelled && !stateDirtyRef.current) setState(loaded);
+        if (
+          !cancelled &&
+          !stateDirtyRef.current &&
+          !stateInteractionRef.current
+        ) {
+          setState(loaded);
+        }
       })
       .catch((commandError) => {
         if (!cancelled) setError(normalizeCommandError(commandError).message);
@@ -115,7 +127,7 @@ export function CharacterPanel({
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedCharacter || projectArchived) return;
+    if (!selectedCharacter || projectArchived || characterLocked) return;
     setIsSaving(true);
     setError(null);
     setSaved(false);
@@ -139,7 +151,7 @@ export function CharacterPanel({
   }
 
   async function handleArchive() {
-    if (!selectedCharacter || projectArchived) return;
+    if (!selectedCharacter || projectArchived || characterLocked) return;
     setError(null);
     try {
       await archiveCharacter(selectedCharacter.id);
@@ -151,7 +163,7 @@ export function CharacterPanel({
 
   async function handleStateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedCharacter || projectArchived) return;
+    if (!selectedCharacter || projectArchived || stateLocked) return;
     setIsStateSaving(true);
     setError(null);
     setSaved(false);
@@ -191,6 +203,7 @@ export function CharacterPanel({
 
   function markStateEditing() {
     stateDirtyRef.current = true;
+    stateInteractionRef.current = true;
   }
 
   return (
@@ -268,7 +281,7 @@ export function CharacterPanel({
                   <input
                     id="character-name"
                     value={selectedCharacter.name}
-                    disabled={projectArchived}
+                    disabled={projectArchived || characterLocked}
                     onChange={(event) =>
                       setCharacters((current) =>
                         current.map((character) =>
@@ -285,7 +298,7 @@ export function CharacterPanel({
                   <input
                     id="character-role"
                     value={selectedCharacter.role}
-                    disabled={projectArchived}
+                    disabled={projectArchived || characterLocked}
                     onChange={(event) =>
                       setCharacters((current) =>
                         current.map((character) =>
@@ -303,7 +316,7 @@ export function CharacterPanel({
                     id="character-summary"
                     rows={3}
                     value={selectedCharacter.summary}
-                    disabled={projectArchived}
+                    disabled={projectArchived || characterLocked}
                     onChange={(event) =>
                       setCharacters((current) =>
                         current.map((character) =>
@@ -315,7 +328,7 @@ export function CharacterPanel({
                     }
                   />
                 </label>
-                {!projectArchived && (
+                {!projectArchived && !characterLocked && (
                   <div className="form-actions">
                     <button
                       className="button button-primary button-small"
@@ -335,6 +348,15 @@ export function CharacterPanel({
                 )}
               </form>
 
+              <RevisionHistoryPanel
+                entityType="character"
+                entityId={selectedCharacter.id}
+                currentRevision={selectedCharacter.revision}
+                canonStatus={selectedCharacter.canon_status}
+                disabled={projectArchived}
+                onRestored={() => void loadCharacters()}
+              />
+
               <form
                 className="character-state-form"
                 onSubmit={handleStateSubmit}
@@ -350,7 +372,7 @@ export function CharacterPanel({
                   <input
                     id="character-location"
                     value={state.current_location}
-                    disabled={projectArchived}
+                    disabled={projectArchived || stateLocked}
                     onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("current_location", event.target.value)
@@ -365,7 +387,7 @@ export function CharacterPanel({
                   <input
                     id="character-emotional-state"
                     value={state.emotional_state}
-                    disabled={projectArchived}
+                    disabled={projectArchived || stateLocked}
                     onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("emotional_state", event.target.value)
@@ -378,7 +400,7 @@ export function CharacterPanel({
                     id="character-goals"
                     rows={3}
                     value={state.goals}
-                    disabled={projectArchived}
+                    disabled={projectArchived || stateLocked}
                     onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("goals", event.target.value)
@@ -390,14 +412,14 @@ export function CharacterPanel({
                   <input
                     id="character-arc-role"
                     value={state.current_arc_role}
-                    disabled={projectArchived}
+                    disabled={projectArchived || stateLocked}
                     onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("current_arc_role", event.target.value)
                     }
                   />
                 </label>
-                {!projectArchived && (
+                {!projectArchived && !stateLocked && (
                   <button
                     className="button button-primary button-small"
                     type="submit"
@@ -407,6 +429,18 @@ export function CharacterPanel({
                   </button>
                 )}
               </form>
+
+              <RevisionHistoryPanel
+                entityType="character_state"
+                entityId={selectedCharacter.id}
+                currentRevision={state.revision}
+                canonStatus={state.canon_status}
+                disabled={projectArchived}
+                onRestored={() => {
+                  stateDirtyRef.current = false;
+                  void getCharacterState(selectedCharacter.id).then(setState);
+                }}
+              />
             </div>
           )}
         </div>
