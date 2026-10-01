@@ -14,6 +14,12 @@ pub struct AppState {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+                .with_target(false)
+                .with_ansi(false)
+                .try_init();
+            tracing::info!("Webnovel AI Studio initialized");
             let data_dir = app
                 .path()
                 .app_data_dir()

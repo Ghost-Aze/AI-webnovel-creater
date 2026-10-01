@@ -10,21 +10,21 @@ pub fn create_project(
     service: &crate::projects::service::ProjectService,
     input: CreateProjectInput,
 ) -> AppResult<Project> {
-    service.create(input)
+    report("project_create", service.create(input))
 }
 
 pub fn list_projects(
     service: &crate::projects::service::ProjectService,
     filter: ProjectListFilter,
 ) -> AppResult<Vec<Project>> {
-    service.list(filter)
+    report("project_list", service.list(filter))
 }
 
 pub fn get_project(
     service: &crate::projects::service::ProjectService,
     id: String,
 ) -> AppResult<Project> {
-    service.get(&id)
+    report("project_get", service.get(&id))
 }
 
 pub fn update_project(
@@ -32,14 +32,22 @@ pub fn update_project(
     id: String,
     input: UpdateProjectInput,
 ) -> AppResult<Project> {
-    service.update(&id, input)
+    report("project_update", service.update(&id, input))
 }
 
 pub fn archive_project(
     service: &crate::projects::service::ProjectService,
     id: String,
 ) -> AppResult<Project> {
-    service.archive(&id)
+    report("project_archive", service.archive(&id))
+}
+
+fn report<T>(command: &'static str, result: AppResult<T>) -> AppResult<T> {
+    match &result {
+        Ok(_) => tracing::debug!(command, "project command completed"),
+        Err(error) => tracing::warn!(command, code = error.code(), "project command failed"),
+    }
+    result
 }
 
 #[cfg(feature = "tauri-app")]

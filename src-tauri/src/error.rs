@@ -25,6 +25,19 @@ pub enum AppError {
 
 pub type AppResult<T> = Result<T, AppError>;
 
+impl AppError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Validation { .. } => "validation",
+            Self::NotFound => "not_found",
+            Self::ArchivedProject => "archived_project",
+            Self::InvalidStatus => "invalid_status",
+            Self::Storage => "storage",
+            Self::Internal => "internal",
+        }
+    }
+}
+
 impl From<rusqlite::Error> for AppError {
     fn from(_: rusqlite::Error) -> Self {
         Self::Storage
