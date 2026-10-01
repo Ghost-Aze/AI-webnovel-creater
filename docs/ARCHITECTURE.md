@@ -2,6 +2,8 @@
 
 The repository is split into a browser-facing client and a provider-independent Rust core. The client is intentionally unaware of SQLite and of any AI provider.
 
+Approved cross-phase defaults are recorded in [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md).
+
 ```text
 apps/client                 React + TypeScript + Vite
   features/projects         Project and character workspace routes
