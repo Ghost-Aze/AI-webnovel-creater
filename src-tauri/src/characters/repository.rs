@@ -709,6 +709,7 @@ fn ensure_mutable(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_revision<T: Serialize>(
     project_id: &str,
     entity_type: MemoryEntityType,

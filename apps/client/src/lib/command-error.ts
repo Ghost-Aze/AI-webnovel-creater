@@ -5,6 +5,9 @@ export type CommandErrorCode =
   | "archived_character"
   | "duplicate_name"
   | "invalid_status"
+  | "conflict"
+  | "locked_canon"
+  | "invalid_proposal"
   | "storage"
   | "internal";
 
@@ -24,6 +27,9 @@ const messages: Record<Exclude<CommandErrorCode, "validation">, string> = {
   archived_character: "Archived characters cannot be edited.",
   duplicate_name: "A character with this name already exists in the project.",
   invalid_status: "The project has an invalid status.",
+  conflict: "This record changed. Reload and try again.",
+  locked_canon: "Locked canon cannot be changed.",
+  invalid_proposal: "This proposal is no longer available.",
   storage: "The project could not be saved. Try again.",
   internal: "Something went wrong. Try again.",
 };

@@ -11,6 +11,7 @@ pub struct AppState {
     pub character_service: characters::service::CharacterService,
     pub project_service: projects::service::ProjectService,
     pub revision_service: revisions::service::RevisionService,
+    pub proposal_service: revisions::service::ProposalService,
 }
 
 #[cfg(feature = "tauri-app")]
@@ -39,12 +40,17 @@ pub fn run() {
             );
             let revision_service = revisions::service::RevisionService::new(
                 revisions::repository::RevisionRepository::new(database.clone()),
-                characters::repository::CharacterRepository::new(database),
+                characters::repository::CharacterRepository::new(database.clone()),
+            );
+            let proposal_service = revisions::service::ProposalService::new(
+                revisions::repository::RevisionRepository::new(database.clone()),
+                characters::repository::CharacterRepository::new(database.clone()),
             );
             app.manage(AppState {
                 character_service,
                 project_service: service,
                 revision_service,
+                proposal_service,
             });
             Ok(())
         })
@@ -60,7 +66,14 @@ pub fn run() {
             commands::character_update,
             commands::character_archive,
             commands::character_state_get,
-            commands::character_state_update
+            commands::character_state_update,
+            commands::memory_history_list,
+            commands::memory_restore,
+            commands::memory_set_canon_status,
+            commands::memory_proposal_create,
+            commands::memory_proposal_list,
+            commands::memory_proposal_promote,
+            commands::memory_proposal_reject
         ])
         .run(tauri::generate_context!())
         .expect("error while running Webnovel AI Studio");

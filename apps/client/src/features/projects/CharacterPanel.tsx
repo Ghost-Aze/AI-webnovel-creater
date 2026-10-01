@@ -1,4 +1,10 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { normalizeCommandError } from "../../lib/command-error";
 import {
@@ -31,6 +37,8 @@ const emptyState: CharacterState = {
   promises: "",
   last_appearance: "",
   current_arc_role: "",
+  revision: 0,
+  canon_status: "canon",
   updated_at: "",
 };
 
@@ -52,6 +60,7 @@ export function CharacterPanel({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const stateDirtyRef = useRef(false);
 
   const selectedCharacter = characters.find(
     (character) => character.id === selectedId,
@@ -85,14 +94,16 @@ export function CharacterPanel({
 
   useEffect(() => {
     if (!selectedId) {
+      stateDirtyRef.current = false;
       setState(emptyState);
       return;
     }
     let cancelled = false;
+    stateDirtyRef.current = false;
     setSaved(false);
     void getCharacterState(selectedId)
       .then((loaded) => {
-        if (!cancelled) setState(loaded);
+        if (!cancelled && !stateDirtyRef.current) setState(loaded);
       })
       .catch((commandError) => {
         if (!cancelled) setError(normalizeCommandError(commandError).message);
@@ -149,6 +160,7 @@ export function CharacterPanel({
     void updated_at;
     try {
       setState(await updateCharacterState(selectedCharacter.id, input));
+      stateDirtyRef.current = false;
       setSaved(true);
     } catch (commandError) {
       setError(normalizeCommandError(commandError).message);
@@ -173,7 +185,12 @@ export function CharacterPanel({
     field: keyof UpdateCharacterStateInput,
     value: string,
   ) {
+    stateDirtyRef.current = true;
     setState((current) => ({ ...current, [field]: value }));
+  }
+
+  function markStateEditing() {
+    stateDirtyRef.current = true;
   }
 
   return (
@@ -334,6 +351,7 @@ export function CharacterPanel({
                     id="character-location"
                     value={state.current_location}
                     disabled={projectArchived}
+                    onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("current_location", event.target.value)
                     }
@@ -348,6 +366,7 @@ export function CharacterPanel({
                     id="character-emotional-state"
                     value={state.emotional_state}
                     disabled={projectArchived}
+                    onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("emotional_state", event.target.value)
                     }
@@ -360,6 +379,7 @@ export function CharacterPanel({
                     rows={3}
                     value={state.goals}
                     disabled={projectArchived}
+                    onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("goals", event.target.value)
                     }
@@ -371,6 +391,7 @@ export function CharacterPanel({
                     id="character-arc-role"
                     value={state.current_arc_role}
                     disabled={projectArchived}
+                    onFocus={markStateEditing}
                     onChange={(event) =>
                       setStateField("current_arc_role", event.target.value)
                     }

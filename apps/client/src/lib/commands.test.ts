@@ -13,7 +13,11 @@ import {
   createProject,
   getCharacterState,
   getProject,
+  listMemoryHistory,
+  restoreMemory,
+  setMemoryCanonStatus,
 } from "./commands";
+import { normalizeCommandError } from "./command-error";
 
 describe("typed project commands", () => {
   it("returns the exact project shape from the command boundary", async () => {
@@ -62,6 +66,51 @@ describe("typed project commands", () => {
     await getCharacterState("character-id");
     expect(invokeMock).toHaveBeenCalledWith("character_state_get", {
       character_id: "character-id",
+    });
+  });
+
+  it("uses snake_case arguments for revision commands", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    await listMemoryHistory("character", "character-id");
+    expect(invokeMock).toHaveBeenCalledWith("memory_history_list", {
+      entity_type: "character",
+      entity_id: "character-id",
+    });
+
+    invokeMock.mockResolvedValueOnce({ revision: 3 });
+    await restoreMemory("character", "character-id", 1, 2);
+    expect(invokeMock).toHaveBeenCalledWith("memory_restore", {
+      entity_type: "character",
+      entity_id: "character-id",
+      revision: 1,
+      expected_revision: 2,
+    });
+
+    invokeMock.mockResolvedValueOnce({ revision: 3 });
+    await setMemoryCanonStatus("character", "character-id", "locked_canon", 2);
+    expect(invokeMock).toHaveBeenCalledWith("memory_set_canon_status", {
+      entity_type: "character",
+      entity_id: "character-id",
+      status: "locked_canon",
+      expected_revision: 2,
+    });
+  });
+
+  it("maps conflict and locked canon errors without backend details", () => {
+    const conflict = normalizeCommandError({
+      code: "conflict",
+      details: { sql: "secret" },
+    });
+    expect(conflict).toMatchObject({
+      code: "conflict",
+      message: "This record changed. Reload and try again.",
+    });
+    expect(conflict.message).not.toContain("secret");
+
+    const locked = normalizeCommandError({ code: "locked_canon" });
+    expect(locked).toMatchObject({
+      code: "locked_canon",
+      message: "Locked canon cannot be changed.",
     });
   });
 });

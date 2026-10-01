@@ -1,4 +1,5 @@
 export type CharacterStatus = "active" | "archived";
+export type CanonStatus = "canon" | "locked_canon";
 
 export interface Character {
   id: string;
@@ -7,6 +8,8 @@ export interface Character {
   summary: string;
   role: string;
   status: CharacterStatus;
+  revision: number;
+  canon_status: CanonStatus;
   created_at: string;
   updated_at: string;
 }
@@ -42,9 +45,14 @@ export interface CharacterState {
   promises: string;
   last_appearance: string;
   current_arc_role: string;
+  revision: number;
+  canon_status: CanonStatus;
   updated_at: string;
 }
 
 export type UpdateCharacterStateInput = Partial<
-  Omit<CharacterState, "character_id" | "updated_at">
+  Omit<
+    CharacterState,
+    "character_id" | "updated_at" | "revision" | "canon_status"
+  >
 >;

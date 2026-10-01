@@ -5,7 +5,13 @@ use crate::{
         UpdateCharacterStateInput,
     },
     domain::project::{CreateProjectInput, Project, ProjectListFilter, UpdateProjectInput},
+    domain::revision::{
+        CanonStatus, CreateProposalInput, MemoryEntityType, MemoryProposal, MemoryRevision,
+        ProposalStatus,
+    },
     error::AppResult,
+    revisions::service::ProposalService,
+    revisions::service::RevisionService,
 };
 
 #[cfg(feature = "tauri-app")]
@@ -94,6 +100,73 @@ pub fn update_character_state(
     report(
         "character_state_update",
         service.update_state(&character_id, input),
+    )
+}
+
+pub fn list_memory_history(
+    service: &RevisionService,
+    entity_type: MemoryEntityType,
+    entity_id: String,
+) -> AppResult<Vec<crate::domain::revision::MemoryRevision>> {
+    report(
+        "memory_history_list",
+        service.history(entity_type, &entity_id),
+    )
+}
+
+pub fn restore_memory(
+    service: &RevisionService,
+    entity_type: MemoryEntityType,
+    entity_id: String,
+    revision: u64,
+    expected_revision: u64,
+) -> AppResult<crate::domain::revision::MemoryRevision> {
+    report(
+        "memory_restore",
+        service.restore(entity_type, &entity_id, revision, expected_revision),
+    )
+}
+
+pub fn create_memory_proposal(
+    service: &ProposalService,
+    input: CreateProposalInput,
+) -> AppResult<MemoryProposal> {
+    report("memory_proposal_create", service.create(input))
+}
+
+pub fn list_memory_proposals(
+    service: &ProposalService,
+    project_id: String,
+    status: Option<ProposalStatus>,
+) -> AppResult<Vec<MemoryProposal>> {
+    report("memory_proposal_list", service.list(&project_id, status))
+}
+
+pub fn promote_memory_proposal(
+    service: &ProposalService,
+    id: String,
+    expected_revision: u64,
+) -> AppResult<MemoryRevision> {
+    report(
+        "memory_proposal_promote",
+        service.promote(&id, expected_revision),
+    )
+}
+
+pub fn reject_memory_proposal(service: &ProposalService, id: String) -> AppResult<MemoryProposal> {
+    report("memory_proposal_reject", service.reject(&id))
+}
+
+pub fn set_memory_canon_status(
+    service: &RevisionService,
+    entity_type: MemoryEntityType,
+    entity_id: String,
+    status: CanonStatus,
+    expected_revision: u64,
+) -> AppResult<crate::domain::revision::MemoryRevision> {
+    report(
+        "memory_set_canon_status",
+        service.set_canon_status(entity_type, &entity_id, status, expected_revision),
     )
 }
 
@@ -199,6 +272,83 @@ mod tauri_commands {
     ) -> AppResult<CharacterState> {
         update_character_state(&state.character_service, character_id, input)
     }
+
+    #[tauri::command]
+    pub fn memory_history_list(
+        state: State<'_, AppState>,
+        entity_type: MemoryEntityType,
+        entity_id: String,
+    ) -> AppResult<Vec<MemoryRevision>> {
+        list_memory_history(&state.revision_service, entity_type, entity_id)
+    }
+
+    #[tauri::command]
+    pub fn memory_restore(
+        state: State<'_, AppState>,
+        entity_type: MemoryEntityType,
+        entity_id: String,
+        revision: u64,
+        expected_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        restore_memory(
+            &state.revision_service,
+            entity_type,
+            entity_id,
+            revision,
+            expected_revision,
+        )
+    }
+
+    #[tauri::command]
+    pub fn memory_set_canon_status(
+        state: State<'_, AppState>,
+        entity_type: MemoryEntityType,
+        entity_id: String,
+        status: CanonStatus,
+        expected_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        set_memory_canon_status(
+            &state.revision_service,
+            entity_type,
+            entity_id,
+            status,
+            expected_revision,
+        )
+    }
+
+    #[tauri::command]
+    pub fn memory_proposal_create(
+        state: State<'_, AppState>,
+        input: CreateProposalInput,
+    ) -> AppResult<MemoryProposal> {
+        create_memory_proposal(&state.proposal_service, input)
+    }
+
+    #[tauri::command]
+    pub fn memory_proposal_list(
+        state: State<'_, AppState>,
+        project_id: String,
+        status: Option<ProposalStatus>,
+    ) -> AppResult<Vec<MemoryProposal>> {
+        list_memory_proposals(&state.proposal_service, project_id, status)
+    }
+
+    #[tauri::command]
+    pub fn memory_proposal_promote(
+        state: State<'_, AppState>,
+        id: String,
+        expected_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        promote_memory_proposal(&state.proposal_service, id, expected_revision)
+    }
+
+    #[tauri::command]
+    pub fn memory_proposal_reject(
+        state: State<'_, AppState>,
+        id: String,
+    ) -> AppResult<MemoryProposal> {
+        reject_memory_proposal(&state.proposal_service, id)
+    }
 }
 
 #[cfg(feature = "tauri-app")]
@@ -209,9 +359,13 @@ mod tests {
     use super::*;
     use crate::{
         db,
-        domain::project::{ProjectStatus, UpdateProjectInput},
+        domain::{
+            character::CreateCharacterInput,
+            project::{ProjectStatus, UpdateProjectInput},
+        },
         error::AppError,
         projects::{repository::ProjectRepository, service::ProjectService},
+        revisions::{repository::RevisionRepository, service::RevisionService},
     };
 
     fn service() -> ProjectService {
@@ -248,5 +402,43 @@ mod tests {
         )
         .unwrap();
         assert_eq!(updated.name, "Updated");
+    }
+
+    #[test]
+    fn revision_command_helpers_delegate_typed_arguments() {
+        let connection = db::in_memory().unwrap();
+        let project_service = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let character_repository =
+            crate::characters::repository::CharacterRepository::new(connection.clone());
+        let revision_service = RevisionService::new(
+            RevisionRepository::new(connection.clone()),
+            character_repository.clone(),
+        );
+        let character_service =
+            crate::characters::service::CharacterService::new(character_repository);
+        let project = project_service
+            .create(CreateProjectInput {
+                name: "Revision commands".to_string(),
+                description: None,
+            })
+            .unwrap();
+        let character = character_service
+            .create(
+                project.id,
+                CreateCharacterInput {
+                    name: "Mira".to_string(),
+                    summary: None,
+                    role: None,
+                },
+            )
+            .unwrap();
+        let history = list_memory_history(
+            &revision_service,
+            MemoryEntityType::Character,
+            character.id.clone(),
+        )
+        .unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].revision, 1);
     }
 }

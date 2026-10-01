@@ -10,6 +10,13 @@ import type {
   UpdateCharacterStateInput,
 } from "../types/character";
 import type {
+  CreateProposalInput,
+  MemoryEntityType,
+  Proposal,
+  ProposalStatus,
+  Revision,
+} from "../types/revision";
+import type {
   CreateProjectInput,
   Project,
   ProjectListFilter,
@@ -97,4 +104,72 @@ export function updateCharacterState(
     character_id: characterId,
     input,
   });
+}
+
+export function listMemoryHistory(
+  entityType: MemoryEntityType,
+  entityId: string,
+): Promise<Revision[]> {
+  return call<Revision[]>("memory_history_list", {
+    entity_type: entityType,
+    entity_id: entityId,
+  });
+}
+
+export function restoreMemory(
+  entityType: MemoryEntityType,
+  entityId: string,
+  revision: number,
+  expectedRevision: number,
+): Promise<Revision> {
+  return call<Revision>("memory_restore", {
+    entity_type: entityType,
+    entity_id: entityId,
+    revision,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function setMemoryCanonStatus(
+  entityType: MemoryEntityType,
+  entityId: string,
+  status: "canon" | "locked_canon",
+  expectedRevision: number,
+): Promise<Revision> {
+  return call<Revision>("memory_set_canon_status", {
+    entity_type: entityType,
+    entity_id: entityId,
+    status,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function createMemoryProposal(
+  input: CreateProposalInput,
+): Promise<Proposal> {
+  return call<Proposal>("memory_proposal_create", { input });
+}
+
+export function listMemoryProposals(
+  projectId: string,
+  status?: ProposalStatus,
+): Promise<Proposal[]> {
+  return call<Proposal[]>("memory_proposal_list", {
+    project_id: projectId,
+    status: status ?? null,
+  });
+}
+
+export function promoteMemoryProposal(
+  id: string,
+  expectedRevision: number,
+): Promise<Revision> {
+  return call<Revision>("memory_proposal_promote", {
+    id,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function rejectMemoryProposal(id: string): Promise<Proposal> {
+  return call<Proposal>("memory_proposal_reject", { id });
 }
