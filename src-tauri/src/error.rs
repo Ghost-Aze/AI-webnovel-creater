@@ -4,6 +4,7 @@ use thiserror::Error;
 #[derive(Debug, Error, Serialize, PartialEq, Eq)]
 #[serde(tag = "code", content = "details")]
 pub enum AppError {
+    #[serde(rename = "validation")]
     #[error("{message}")]
     Validation { message: String },
     #[serde(rename = "not_found")]

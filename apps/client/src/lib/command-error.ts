@@ -31,6 +31,13 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 export function normalizeCommandError(value: unknown): CommandError {
+  if (value instanceof CommandError) {
+    if (value.code === "validation") {
+      return new CommandError(value.code, value.message);
+    }
+    return new CommandError(value.code, messages[value.code]);
+  }
+
   const record = asRecord(value);
   let payload: Record<string, unknown> | undefined = record;
 

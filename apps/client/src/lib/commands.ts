@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { CommandError, normalizeCommandError } from "./command-error";
+import { normalizeCommandError } from "./command-error";
 import type {
   CreateProjectInput,
   Project,
@@ -15,9 +15,6 @@ async function call<T>(
   try {
     return await invoke<T>(command, args);
   } catch (error) {
-    if (error instanceof CommandError) {
-      throw error;
-    }
     throw normalizeCommandError(error);
   }
 }
