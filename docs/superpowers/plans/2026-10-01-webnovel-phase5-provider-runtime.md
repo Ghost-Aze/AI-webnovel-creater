@@ -50,7 +50,7 @@ process memory and shares the configured registry with Phase 4 commands.
 ## Completion record
 
 - Branch: `phase5/implementation`
-- Implementation commit: pending final commit after verification.
+- Implementation commit: `d398143` (`feat: add ephemeral provider runtime lifecycle`).
 - Frontend: format, typecheck, lint and build passed; 26 tests passed.
 - Rust: format, Clippy and tests passed; 50 unit tests, 21 integration tests,
   and 0 doc-test failures.
