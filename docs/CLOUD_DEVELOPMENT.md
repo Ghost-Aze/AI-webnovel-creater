@@ -40,6 +40,17 @@ cargo test
 
 `npm run tauri:dev` and `npm run tauri:build` require a desktop display and the target platform's native webview toolchain. Windows builds should be run on a Windows-capable runner. Android source generation uses the Tauri CLI and requires Android SDK, NDK and Java; if those are unavailable, report the check as `environment-limited` and keep generated source separate from build artifacts.
 
+## Codex Superpowers
+
+The cloud onboarding configuration installs the official [obra/superpowers](https://github.com/obra/superpowers) Codex plugin from its `main` branch:
+
+```bash
+codex plugin marketplace add obra/superpowers --ref main
+codex plugin add superpowers@superpowers-dev
+```
+
+This is a Codex plugin installation, not a project dependency. Its skills are available to the Codex session through the global plugin directory and are not copied into the application bundle. The current verified plugin version is `6.4.2`.
+
 ## Continue from another device
 
 The cloud environment is the shared development workspace. A mobile Codex client can reopen the same task and inspect the branch, test output and saved configuration; it does not run the Tauri desktop binary locally. Publishing the environment snapshots the prepared checkout, while live processes and runtime authentication are recreated on the next task.
