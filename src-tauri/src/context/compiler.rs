@@ -98,7 +98,10 @@ impl<E: TokenEstimator> ContextCompiler<E> {
         candidates.push(Candidate {
             kind: ContextBlockKind::Project,
             source_id: Some(project.id.clone()),
-            content: format!("Project: {}\nDescription: {}", project.name, project.description),
+            content: format!(
+                "Project: {}\nDescription: {}",
+                project.name, project.description
+            ),
             priority: 80,
         });
 
@@ -274,7 +277,11 @@ mod tests {
             current_location: Some("North gate".into()),
             ..Default::default()
         });
-        FakeSource { project, character, state }
+        FakeSource {
+            project,
+            character,
+            state,
+        }
     }
 
     fn profile(context_window_tokens: u32, default_output_tokens: u32) -> ModelProfile {
@@ -357,7 +364,10 @@ mod tests {
         let result = compiler
             .compile(input, &profile(25, 5), &source())
             .expect("context should compile");
-        assert_eq!(result.blocks.first().unwrap().kind, ContextBlockKind::System);
+        assert_eq!(
+            result.blocks.first().unwrap().kind,
+            ContextBlockKind::System
+        );
         assert!(result.blocks.iter().any(|block| block.truncated));
         assert!(result.estimated_input_tokens <= result.input_budget_tokens);
     }
@@ -392,8 +402,14 @@ mod tests {
         let result = ContextCompiler::default()
             .compile(input, &profile(4096, 512), &source())
             .unwrap();
-        assert!(result.blocks.iter().any(|block| block.source_id.as_deref() == Some("explicit")));
-        assert!(!result.blocks.iter().any(|block| block.source_id.as_deref() == Some("character-1")));
+        assert!(result
+            .blocks
+            .iter()
+            .any(|block| block.source_id.as_deref() == Some("explicit")));
+        assert!(!result
+            .blocks
+            .iter()
+            .any(|block| block.source_id.as_deref() == Some("character-1")));
     }
 
     #[test]

@@ -82,9 +82,16 @@ fn compiles_selected_character_and_state() {
 
     let source = ServiceContextSource::new(projects, characters);
     let result = ContextCompiler::default()
-        .compile(request(&project.id, vec![character.id.clone()]), &profile(), &source)
+        .compile(
+            request(&project.id, vec![character.id.clone()]),
+            &profile(),
+            &source,
+        )
         .unwrap();
-    assert!(result.blocks.iter().any(|block| block.content.contains("Ji-an")));
+    assert!(result
+        .blocks
+        .iter()
+        .any(|block| block.content.contains("Ji-an")));
     assert!(result
         .blocks
         .iter()
@@ -191,7 +198,11 @@ fn does_not_persist_or_mutate_memory() {
     let before = characters.get(&character.id).unwrap();
     let source = ServiceContextSource::new(projects, characters.clone());
     ContextCompiler::default()
-        .compile(request(&project.id, vec![character.id.clone()]), &profile(), &source)
+        .compile(
+            request(&project.id, vec![character.id.clone()]),
+            &profile(),
+            &source,
+        )
         .unwrap();
     assert_eq!(characters.get(&character.id).unwrap(), before);
     assert_eq!(characters.get_state(&character.id).unwrap().revision, 0);

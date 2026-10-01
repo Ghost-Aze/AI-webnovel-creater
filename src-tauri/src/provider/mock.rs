@@ -35,15 +35,17 @@ impl AIProvider for MockProvider {
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
-        self.profiles.iter().fold(ProviderCapabilities::default(), |mut result, profile| {
-            result.streaming |= profile.capabilities.streaming;
-            result.embeddings |= profile.capabilities.embeddings;
-            result.tools |= profile.capabilities.tools;
-            result.vision |= profile.capabilities.vision;
-            result.structured_output |= profile.capabilities.structured_output;
-            result.prompt_caching |= profile.capabilities.prompt_caching;
-            result
-        })
+        self.profiles
+            .iter()
+            .fold(ProviderCapabilities::default(), |mut result, profile| {
+                result.streaming |= profile.capabilities.streaming;
+                result.embeddings |= profile.capabilities.embeddings;
+                result.tools |= profile.capabilities.tools;
+                result.vision |= profile.capabilities.vision;
+                result.structured_output |= profile.capabilities.structured_output;
+                result.prompt_caching |= profile.capabilities.prompt_caching;
+                result
+            })
     }
 
     fn list_models(&self) -> ProviderResult<Vec<ModelProfile>> {

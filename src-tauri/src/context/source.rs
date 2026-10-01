@@ -1,7 +1,10 @@
 use crate::{
     characters::service::CharacterService,
     context::compiler::ContextSource,
-    domain::{character::{Character, CharacterState}, project::Project},
+    domain::{
+        character::{Character, CharacterState},
+        project::Project,
+    },
     error::{AppError, AppResult},
     projects::service::ProjectService,
 };
@@ -14,7 +17,10 @@ pub struct ServiceContextSource {
 
 impl ServiceContextSource {
     pub fn new(projects: ProjectService, characters: CharacterService) -> Self {
-        Self { projects, characters }
+        Self {
+            projects,
+            characters,
+        }
     }
 }
 

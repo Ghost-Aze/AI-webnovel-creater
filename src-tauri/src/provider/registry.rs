@@ -47,7 +47,10 @@ impl ProviderRegistry {
             .providers
             .read()
             .map_err(|_| ProviderError::ProviderFailure)?;
-        Ok(providers.values().map(|provider| provider.descriptor()).collect())
+        Ok(providers
+            .values()
+            .map(|provider| provider.descriptor())
+            .collect())
     }
 
     pub fn list_models(&self, provider_id: Option<&str>) -> ProviderResult<Vec<ModelProfile>> {
@@ -136,21 +139,33 @@ mod tests {
     #[test]
     fn lists_and_resolves_models() {
         let registry = ProviderRegistry::new();
-        registry.register(provider("zeta", &["model-b", "model-a"])).unwrap();
+        registry
+            .register(provider("zeta", &["model-b", "model-a"]))
+            .unwrap();
         registry.register(provider("alpha", &["model-c"])).unwrap();
 
         let providers = registry.list_providers().unwrap();
         assert_eq!(
-            providers.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+            providers
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
             ["alpha", "zeta"]
         );
         let models = registry.list_models(None).unwrap();
         assert_eq!(
-            models.iter().map(|item| item.model_id.as_str()).collect::<Vec<_>>(),
+            models
+                .iter()
+                .map(|item| item.model_id.as_str())
+                .collect::<Vec<_>>(),
             ["model-c", "model-a", "model-b"]
         );
         assert_eq!(
-            registry.resolve("zeta", "model-a").unwrap().profile.model_id,
+            registry
+                .resolve("zeta", "model-a")
+                .unwrap()
+                .profile
+                .model_id,
             "model-a"
         );
     }
