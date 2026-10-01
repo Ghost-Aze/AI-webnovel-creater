@@ -45,3 +45,7 @@ cargo test
 The cloud environment is the shared development workspace. A mobile Codex client can reopen the same task and inspect the branch, test output and saved configuration; it does not run the Tauri desktop binary locally. Publishing the environment snapshots the prepared checkout, while live processes and runtime authentication are recreated on the next task.
 
 No provider key, novel content or SQLite runtime file belongs in environment scripts or source control. Phase 0 does not configure a provider secret or cloud sync destination.
+
+## Current environment checks
+
+On 2026-10-01 the headless verification matrix passed. `npm run tauri:build` reached the native compile but the Linux image has no `glib-2.0` or `gobject-2.0` development package at version 2.70 or newer. A Windows-targeted Rust check additionally needs `x86_64-w64-mingw32-gcc`, which is not installed here. `tauri android init --ci --skip-targets-install` could not run because `ANDROID_HOME`, Android SDK and NDK are not installed. These are environment-limited checks; the source configuration remains ready for a Windows or Android-capable runner.
