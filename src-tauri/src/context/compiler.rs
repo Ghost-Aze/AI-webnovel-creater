@@ -105,6 +105,7 @@ impl<E: TokenEstimator> ContextCompiler<E> {
             priority: 80,
         });
 
+        let mut selected_states = Vec::new();
         for character_id in request.character_ids {
             let character = source.load_character(&request.project_id, &character_id)?;
             candidates.push(Candidate {
@@ -117,14 +118,17 @@ impl<E: TokenEstimator> ContextCompiler<E> {
                 priority: 60,
             });
             if request.include_character_states {
-                let state = source.load_character_state(&character.id)?;
-                candidates.push(Candidate {
-                    kind: ContextBlockKind::CharacterState,
-                    source_id: Some(state.character_id.clone()),
-                    content: serde_json::to_string(&state).map_err(|_| AppError::Internal)?,
-                    priority: 50,
-                });
+                selected_states.push(source.load_character_state(&character.id)?);
             }
+        }
+
+        for state in selected_states {
+            candidates.push(Candidate {
+                kind: ContextBlockKind::CharacterState,
+                source_id: Some(state.character_id.clone()),
+                content: serde_json::to_string(&state).map_err(|_| AppError::Internal)?,
+                priority: 50,
+            });
         }
 
         for working_memory in request.working_memory {
@@ -235,6 +239,7 @@ mod tests {
         project: Project,
         character: Character,
         state: CharacterState,
+        second_character: Option<(Character, CharacterState)>,
     }
 
     impl ContextSource for FakeSource {
@@ -243,10 +248,20 @@ mod tests {
         }
 
         fn load_character(&self, _project_id: &str, _character_id: &str) -> AppResult<Character> {
+            if let Some((character, _)) = &self.second_character {
+                if _character_id == character.id {
+                    return Ok(character.clone());
+                }
+            }
             Ok(self.character.clone())
         }
 
-        fn load_character_state(&self, _character_id: &str) -> AppResult<CharacterState> {
+        fn load_character_state(&self, character_id: &str) -> AppResult<CharacterState> {
+            if let Some((character, state)) = &self.second_character {
+                if character_id == character.id {
+                    return Ok(state.clone());
+                }
+            }
             Ok(self.state.clone())
         }
     }
@@ -281,7 +296,27 @@ mod tests {
             project,
             character,
             state,
+            second_character: None,
         }
+    }
+
+    fn two_character_source() -> FakeSource {
+        let mut source = source();
+        let character = Character {
+            id: "character-2".into(),
+            project_id: source.project.id.clone(),
+            name: "Mira".into(),
+            summary: "Scout".into(),
+            role: "Support".into(),
+            status: CharacterStatus::Active,
+            revision: 1,
+            canon_status: CanonStatus::Canon,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        let state = CharacterState::empty(character.id.clone());
+        source.second_character = Some((character, state));
+        source
     }
 
     fn profile(context_window_tokens: u32, default_output_tokens: u32) -> ModelProfile {
@@ -370,6 +405,23 @@ mod tests {
         );
         assert!(result.blocks.iter().any(|block| block.truncated));
         assert!(result.estimated_input_tokens <= result.input_budget_tokens);
+    }
+
+    #[test]
+    fn includes_all_characters_before_character_states() {
+        let mut input = request();
+        input.character_ids = vec!["character-1".into(), "character-2".into()];
+        let result = ContextCompiler::new(CharacterEstimator)
+            .compile(input, &profile(128, 1), &two_character_source())
+            .expect("selected character records should fit before their states");
+        assert!(result
+            .blocks
+            .iter()
+            .any(|block| block.source_id.as_deref() == Some("character-1")));
+        assert!(result
+            .blocks
+            .iter()
+            .any(|block| block.source_id.as_deref() == Some("character-2")));
     }
 
     #[test]

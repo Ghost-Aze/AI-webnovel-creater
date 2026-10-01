@@ -435,7 +435,7 @@ mod tauri_commands {
         list_providers(&state.provider_registry)
     }
 
-    #[tauri::command]
+    #[tauri::command(rename_all = "snake_case")]
     pub fn model_list(
         state: State<'_, AppState>,
         provider_id: Option<String>,
@@ -591,5 +591,12 @@ mod tests {
             compile_context(&registry, &ContextCompiler::default(), &source, request),
             Err(AppError::ProviderNotFound)
         );
+    }
+
+    #[test]
+    fn model_list_command_declares_snake_case_arguments() {
+        let source = include_str!("commands.rs");
+        let attribute = ["#[tauri::command(", "rename_all = \"snake_case\")]"].concat();
+        assert!(source.contains(&attribute));
     }
 }
