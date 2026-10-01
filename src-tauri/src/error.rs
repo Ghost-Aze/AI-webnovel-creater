@@ -6,14 +6,19 @@ use thiserror::Error;
 pub enum AppError {
     #[error("{message}")]
     Validation { message: String },
+    #[serde(rename = "not_found")]
     #[error("Project was not found.")]
     NotFound,
+    #[serde(rename = "archived_project")]
     #[error("The project is archived and cannot be updated.")]
     ArchivedProject,
+    #[serde(rename = "invalid_status")]
     #[error("Stored project status is invalid.")]
     InvalidStatus,
+    #[serde(rename = "storage")]
     #[error("Database operation failed.")]
     Storage,
+    #[serde(rename = "internal")]
     #[error("Unexpected application error.")]
     Internal,
 }
