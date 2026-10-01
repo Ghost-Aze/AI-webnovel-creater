@@ -12,12 +12,14 @@ import {
   createCharacter,
   createProject,
   compileContext,
+  configureProvider,
   generateProvider,
   getCharacterState,
   getProject,
   listModels,
   listMemoryHistory,
   listProviders,
+  removeProvider,
   restoreMemory,
   setMemoryCanonStatus,
   updateCharacter,
@@ -25,7 +27,10 @@ import {
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
-import type { GenerateRequest } from "../types/provider";
+import type {
+  GenerateRequest,
+  ProviderConfigureInput,
+} from "../types/provider";
 
 describe("typed project commands", () => {
   it("returns the exact project shape from the command boundary", async () => {
@@ -186,5 +191,30 @@ describe("typed project commands", () => {
 
     await expect(generateProvider(request)).resolves.toEqual(response);
     expect(invokeMock).toHaveBeenCalledWith("provider_generate", { request });
+  });
+
+  it("uses snake_case provider runtime setup payloads", async () => {
+    const input: ProviderConfigureInput = {
+      descriptor: {
+        id: "openai-compatible",
+        display_name: "OpenAI-compatible",
+      },
+      base_url: "https://example.test/v1",
+      models: [],
+      credential_id: "session-key",
+      credential_value: "secret-token",
+    };
+    const configured = { descriptor: input.descriptor, models: [] };
+    invokeMock.mockResolvedValueOnce(configured);
+    await expect(configureProvider(input)).resolves.toEqual(configured);
+    expect(invokeMock).toHaveBeenCalledWith("provider_configure", { input });
+
+    invokeMock.mockResolvedValueOnce(input.descriptor);
+    await expect(removeProvider(input.descriptor.id)).resolves.toEqual(
+      input.descriptor,
+    );
+    expect(invokeMock).toHaveBeenCalledWith("provider_remove", {
+      provider_id: input.descriptor.id,
+    });
   });
 });

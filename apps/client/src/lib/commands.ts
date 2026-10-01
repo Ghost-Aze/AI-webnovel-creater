@@ -27,6 +27,8 @@ import type {
   GenerateRequest,
   GenerateResponse,
   ModelProfile,
+  ProviderConfigureInput,
+  ProviderConfigureResult,
   ProviderDescriptor,
 } from "../types/provider";
 
@@ -208,6 +210,20 @@ export function generateProvider(
   request: GenerateRequest,
 ): Promise<GenerateResponse> {
   return call<GenerateResponse>("provider_generate", { request });
+}
+
+export function configureProvider(
+  input: ProviderConfigureInput,
+): Promise<ProviderConfigureResult> {
+  return call<ProviderConfigureResult>("provider_configure", { input });
+}
+
+export function removeProvider(
+  providerId: string,
+): Promise<ProviderDescriptor> {
+  return call<ProviderDescriptor>("provider_remove", {
+    provider_id: providerId,
+  });
 }
 
 export function compileContext(

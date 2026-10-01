@@ -14,6 +14,7 @@ current Phase 1 implementation.
 - Phase 1 establishes structured `Character` and `CharacterState` memory.
 - Phase 3 establishes provider-independent capability contracts, runtime model profiles, an in-memory registry and a deterministic structured-memory Context Compiler. It does not connect a provider.
 - Phase 4 establishes one OpenAI-compatible HTTP adapter, an injected transport boundary, SSE streaming parsing and a typed provider-generate command. It does not persist credentials or add provider settings UI.
+- Phase 5 establishes a process-memory provider runtime and credential-store abstraction. It supports configure/remove lifecycle commands without persisting secrets; platform secure stores and setup UI remain separate.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -64,6 +65,7 @@ current Phase 1 implementation.
 - Phase 3's compiler reads Project and explicitly selected Character/CharacterState records through `ContextSource`, accepts transient working blocks, uses model profile budget metadata and returns omission/truncation details without writing memory.
 - A missing provider capability or retrieval service results in a visible degraded path, not an implicit change to canonical state.
 - `provider_generate` resolves a model through `ProviderRegistry` and calls the async provider contract. The registry remains empty at startup until a later secure-credential setup registers an adapter.
+- `ProviderRuntime` owns the shared registry and a `CredentialStore`. Phase 5's `EphemeralCredentialStore` is intentionally cleared on restart and is only a bridge to platform backends. Configure failures roll back the credential and registry mapping; remove deletes both runtime entries.
 
 ## Manuscript and chat
 

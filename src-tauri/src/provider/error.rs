@@ -12,6 +12,10 @@ pub enum ProviderError {
     InvalidRequest,
     #[error("provider operation failed")]
     ProviderFailure,
+    #[error("provider credential was not found")]
+    CredentialNotFound,
+    #[error("provider credential is already registered")]
+    CredentialAlreadyRegistered,
     #[error("provider is already registered")]
     ProviderAlreadyRegistered,
     #[error("model is duplicated within a provider")]

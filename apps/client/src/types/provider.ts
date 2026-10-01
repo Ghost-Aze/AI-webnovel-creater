@@ -53,3 +53,16 @@ export interface GenerateResponse {
   text: string;
   usage: ProviderUsage;
 }
+
+export interface ProviderConfigureInput {
+  descriptor: ProviderDescriptor;
+  base_url: string;
+  models: ModelProfile[];
+  credential_id: string;
+  credential_value: string;
+}
+
+export interface ProviderConfigureResult {
+  descriptor: ProviderDescriptor;
+  models: ModelProfile[];
+}

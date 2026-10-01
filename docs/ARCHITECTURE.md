@@ -105,10 +105,26 @@ is intentionally empty at startup until the later secure credential and
 provider setup phase registers a configured adapter. React exposes the same
 boundary through `generateProvider`; it does not know the HTTP wire format.
 
+## Phase 5 provider runtime
+
+`ProviderRuntime` owns the registry used by list/model/generate commands and a
+`CredentialStore` abstraction. The phase's `EphemeralCredentialStore` keeps
+`SecretValue` instances in process memory only; values are neither serializable
+nor printable through `Debug`. Configure writes the credential, builds an
+OpenAI-compatible adapter and registers it as one lifecycle. Any validation,
+adapter or duplicate failure removes the temporary credential before returning.
+
+`provider_configure` and `provider_remove` expose this lifecycle through typed
+snake_case commands. Configure responses contain descriptors and model
+profiles only. Startup creates an empty runtime, and remove deletes both the
+provider registry entry and its credential reference. Windows Credential
+Manager, Android Keystore, provider settings UI and model routing are deferred
+until a platform secure-storage phase.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary, while credential setup, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary, while platform credential storage, provider UI, model routing, orchestration, manuscript revisions, semantic search, relationships and sync remain outside this slice. New memory entities must remain structured and provider-independent.

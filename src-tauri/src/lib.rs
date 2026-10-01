@@ -8,6 +8,9 @@ pub mod projects;
 pub mod provider;
 pub mod revisions;
 
+#[cfg(feature = "tauri-app")]
+use std::sync::Arc;
+
 #[derive(Clone)]
 pub struct AppState {
     pub character_service: characters::service::CharacterService,
@@ -15,6 +18,7 @@ pub struct AppState {
     pub context_source: context::ServiceContextSource,
     pub project_service: projects::service::ProjectService,
     pub provider_registry: provider::ProviderRegistry,
+    pub provider_runtime: provider::ProviderRuntime,
     pub revision_service: revisions::service::RevisionService,
     pub proposal_service: revisions::service::ProposalService,
 }
@@ -53,12 +57,16 @@ pub fn run() {
             );
             let context_source =
                 context::ServiceContextSource::new(service.clone(), character_service.clone());
+            let provider_runtime =
+                provider::ProviderRuntime::new(Arc::new(provider::EphemeralCredentialStore::new()));
+            let provider_registry = provider_runtime.registry();
             app.manage(AppState {
                 character_service,
                 context_compiler: context::ContextCompiler::default(),
                 context_source,
                 project_service: service,
-                provider_registry: provider::ProviderRegistry::new(),
+                provider_registry,
+                provider_runtime,
                 revision_service,
                 proposal_service,
             });
@@ -87,7 +95,9 @@ pub fn run() {
             commands::provider_list,
             commands::model_list,
             commands::context_compile,
-            commands::provider_generate
+            commands::provider_generate,
+            commands::provider_configure,
+            commands::provider_remove
         ])
         .run(tauri::generate_context!())
         .expect("error while running Webnovel AI Studio");

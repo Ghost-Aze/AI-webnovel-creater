@@ -12,7 +12,8 @@ use crate::{
     },
     error::AppResult,
     provider::{
-        GenerateRequest, GenerateResponse, ModelProfile, ProviderDescriptor, ProviderRegistry,
+        GenerateRequest, GenerateResponse, ModelProfile, ProviderConfigureInput,
+        ProviderConfigureResult, ProviderDescriptor, ProviderRegistry, ProviderRuntime,
     },
     revisions::service::ProposalService,
     revisions::service::RevisionService,
@@ -256,6 +257,26 @@ pub async fn generate(
     )
 }
 
+pub fn configure_provider(
+    runtime: &ProviderRuntime,
+    input: ProviderConfigureInput,
+) -> AppResult<ProviderConfigureResult> {
+    report(
+        "provider_configure",
+        runtime.configure(input).map_err(Into::into),
+    )
+}
+
+pub fn remove_provider(
+    runtime: &ProviderRuntime,
+    provider_id: String,
+) -> AppResult<ProviderDescriptor> {
+    report(
+        "provider_remove",
+        runtime.remove(&provider_id).map_err(Into::into),
+    )
+}
+
 fn report<T>(command: &'static str, result: AppResult<T>) -> AppResult<T> {
     match &result {
         Ok(_) => tracing::debug!(command, "project command completed"),
@@ -480,6 +501,22 @@ mod tauri_commands {
     ) -> AppResult<GenerateResponse> {
         generate(&state.provider_registry, request).await
     }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn provider_configure(
+        state: State<'_, AppState>,
+        input: ProviderConfigureInput,
+    ) -> AppResult<ProviderConfigureResult> {
+        configure_provider(&state.provider_runtime, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn provider_remove(
+        state: State<'_, AppState>,
+        provider_id: String,
+    ) -> AppResult<ProviderDescriptor> {
+        remove_provider(&state.provider_runtime, provider_id)
+    }
 }
 
 #[cfg(feature = "tauri-app")]
@@ -502,8 +539,9 @@ mod tests {
         error::AppError,
         projects::{repository::ProjectRepository, service::ProjectService},
         provider::{
-            GenerateRequest, MockProvider, ModelProfile, ModelRef, PromptMessage, PromptRole,
-            ProviderCapabilities, ProviderDescriptor, ProviderRegistry,
+            EphemeralCredentialStore, GenerateRequest, MockProvider, ModelProfile, ModelRef,
+            PromptMessage, PromptRole, ProviderCapabilities, ProviderConfigureInput,
+            ProviderDescriptor, ProviderRegistry, ProviderRuntime,
         },
         revisions::{repository::RevisionRepository, service::RevisionService},
     };
@@ -664,6 +702,39 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(response.text, "mock response: Hello");
+    }
+
+    #[test]
+    fn provider_runtime_commands_configure_and_remove_shared_registry() {
+        let runtime = ProviderRuntime::new(Arc::new(EphemeralCredentialStore::new()));
+        let input = ProviderConfigureInput {
+            descriptor: ProviderDescriptor {
+                id: "configured".into(),
+                display_name: "Configured".into(),
+            },
+            base_url: "https://example.test/v1".into(),
+            models: vec![ModelProfile {
+                provider_id: "configured".into(),
+                model_id: "writer".into(),
+                display_name: "Writer".into(),
+                context_window_tokens: 4096,
+                default_output_tokens: 512,
+                strengths: Vec::new(),
+                weaknesses: Vec::new(),
+                strategy: Vec::new(),
+                capabilities: ProviderCapabilities::default(),
+            }],
+            credential_id: "session-credential".into(),
+            credential_value: "session-secret".into(),
+        };
+        let configured = configure_provider(&runtime, input).unwrap();
+        assert_eq!(configured.descriptor.id, "configured");
+        assert_eq!(runtime.registry().list_models(None).unwrap().len(), 1);
+        assert_eq!(
+            remove_provider(&runtime, "configured".into()).unwrap().id,
+            "configured"
+        );
+        assert!(runtime.registry().list_providers().unwrap().is_empty());
     }
 
     #[test]

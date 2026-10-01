@@ -93,6 +93,34 @@ impl ProviderRegistry {
             .ok_or(ProviderError::ModelNotFound)?;
         Ok(ResolvedModel { provider, profile })
     }
+
+    pub fn unregister(&self, provider_id: &str) -> ProviderResult<ProviderDescriptor> {
+        let mut providers = self
+            .providers
+            .write()
+            .map_err(|_| ProviderError::ProviderFailure)?;
+        providers
+            .remove(provider_id)
+            .map(|provider| provider.descriptor())
+            .ok_or(ProviderError::ProviderNotFound)
+    }
+
+    pub fn contains(&self, provider_id: &str) -> ProviderResult<bool> {
+        Ok(self
+            .providers
+            .read()
+            .map_err(|_| ProviderError::ProviderFailure)?
+            .contains_key(provider_id))
+    }
+
+    pub fn descriptor(&self, provider_id: &str) -> ProviderResult<ProviderDescriptor> {
+        self.providers
+            .read()
+            .map_err(|_| ProviderError::ProviderFailure)?
+            .get(provider_id)
+            .map(|provider| provider.descriptor())
+            .ok_or(ProviderError::ProviderNotFound)
+    }
 }
 
 #[cfg(test)]
