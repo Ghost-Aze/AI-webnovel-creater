@@ -1,5 +1,6 @@
 pub mod characters;
 pub mod commands;
+pub mod context;
 pub mod db;
 pub mod domain;
 pub mod error;
