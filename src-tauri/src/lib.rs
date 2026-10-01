@@ -4,11 +4,13 @@ pub mod db;
 pub mod domain;
 pub mod error;
 pub mod projects;
+pub mod revisions;
 
 #[derive(Clone)]
 pub struct AppState {
     pub character_service: characters::service::CharacterService,
     pub project_service: projects::service::ProjectService,
+    pub revision_service: revisions::service::RevisionService,
 }
 
 #[cfg(feature = "tauri-app")]
@@ -33,11 +35,16 @@ pub fn run() {
                 projects::repository::ProjectRepository::new(database.clone()),
             );
             let character_service = characters::service::CharacterService::new(
+                characters::repository::CharacterRepository::new(database.clone()),
+            );
+            let revision_service = revisions::service::RevisionService::new(
+                revisions::repository::RevisionRepository::new(database.clone()),
                 characters::repository::CharacterRepository::new(database),
             );
             app.manage(AppState {
                 character_service,
                 project_service: service,
+                revision_service,
             });
             Ok(())
         })
