@@ -33,7 +33,7 @@ fn migration_is_idempotent_and_preserves_data() {
             .unwrap()
             .query_row::<i64, _, _>("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0),)
             .unwrap(),
-        3
+        4
     );
 
     let connection = connection.lock().unwrap();
@@ -67,6 +67,9 @@ fn migration_is_idempotent_and_preserves_data() {
     assert!(connection
         .query_row::<i64, _, _>("SELECT COUNT(*) FROM memory_proposals", [], |row| row
             .get(0),)
+        .is_ok());
+    assert!(connection
+        .query_row::<i64, _, _>("SELECT COUNT(*) FROM conversations", [], |row| row.get(0),)
         .is_ok());
 }
 

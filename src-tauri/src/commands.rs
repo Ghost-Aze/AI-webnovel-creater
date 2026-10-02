@@ -4,9 +4,17 @@ use crate::{
         CompiledContext, ContextCompileRequest, ContextCompiler, ContextSource,
         ServiceContextSource,
     },
+    conversations::{
+        chat::{DeveloperChatSendRequest, DeveloperChatSendResult, DeveloperChatService},
+        service::ConversationService,
+    },
     domain::character::{
         Character, CharacterListFilter, CharacterState, CreateCharacterInput, UpdateCharacterInput,
         UpdateCharacterStateInput,
+    },
+    domain::conversation::{
+        AppendMessageInput, Conversation, ConversationListFilter, ConversationMessage,
+        CreateConversationInput,
     },
     domain::project::{CreateProjectInput, Project, ProjectListFilter, UpdateProjectInput},
     domain::revision::{
@@ -14,6 +22,7 @@ use crate::{
         ProposalStatus,
     },
     error::AppResult,
+    memory_tools::{MemoryToolRequest, MemoryToolService},
     orchestration::{NarrativeOrchestrator, OrchestrationRequest, OrchestrationResult},
     provider::{
         CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile, ModelRouter,
@@ -61,6 +70,47 @@ pub fn archive_project(
     id: String,
 ) -> AppResult<Project> {
     report("project_archive", service.archive(&id))
+}
+
+pub fn create_conversation(
+    service: &ConversationService,
+    input: CreateConversationInput,
+) -> AppResult<Conversation> {
+    report("conversation_create", service.create(input))
+}
+
+pub fn list_conversations(
+    service: &ConversationService,
+    project_id: String,
+    filter: ConversationListFilter,
+) -> AppResult<Vec<Conversation>> {
+    report("conversation_list", service.list(&project_id, filter))
+}
+
+pub fn get_conversation(service: &ConversationService, id: String) -> AppResult<Conversation> {
+    report("conversation_get", service.get(&id))
+}
+
+pub fn list_conversation_messages(
+    service: &ConversationService,
+    conversation_id: String,
+    limit: Option<u32>,
+) -> AppResult<Vec<ConversationMessage>> {
+    report(
+        "conversation_message_list",
+        service.list_messages(&conversation_id, limit),
+    )
+}
+
+pub fn append_conversation_message(
+    service: &ConversationService,
+    conversation_id: String,
+    input: AppendMessageInput,
+) -> AppResult<ConversationMessage> {
+    report(
+        "conversation_message_append",
+        service.append_message(&conversation_id, input),
+    )
 }
 
 pub fn create_character(
@@ -258,6 +308,28 @@ pub async fn orchestrate(
     )
 }
 
+pub async fn developer_chat_send(
+    service: &ConversationService,
+    registry: &ProviderRegistry,
+    compiler: &ContextCompiler,
+    source: &ServiceContextSource,
+    request: DeveloperChatSendRequest,
+) -> AppResult<DeveloperChatSendResult> {
+    report(
+        "developer_chat_send",
+        DeveloperChatService
+            .send(service, registry, compiler, source, request)
+            .await,
+    )
+}
+
+pub fn memory_tool_propose(
+    service: &MemoryToolService,
+    request: MemoryToolRequest,
+) -> AppResult<crate::domain::revision::MemoryProposal> {
+    report("memory_tool_propose", service.propose(request))
+}
+
 pub fn compile_context(
     registry: &ProviderRegistry,
     compiler: &ContextCompiler,
@@ -357,6 +429,69 @@ mod tauri_commands {
     #[tauri::command]
     pub fn project_archive(state: State<'_, AppState>, id: String) -> AppResult<Project> {
         archive_project(&state.project_service, id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn conversation_create(
+        state: State<'_, AppState>,
+        input: CreateConversationInput,
+    ) -> AppResult<Conversation> {
+        create_conversation(&state.conversation_service, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn conversation_list(
+        state: State<'_, AppState>,
+        project_id: String,
+        filter: ConversationListFilter,
+    ) -> AppResult<Vec<Conversation>> {
+        list_conversations(&state.conversation_service, project_id, filter)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn conversation_get(state: State<'_, AppState>, id: String) -> AppResult<Conversation> {
+        get_conversation(&state.conversation_service, id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn conversation_message_list(
+        state: State<'_, AppState>,
+        conversation_id: String,
+        limit: Option<u32>,
+    ) -> AppResult<Vec<ConversationMessage>> {
+        list_conversation_messages(&state.conversation_service, conversation_id, limit)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn conversation_message_append(
+        state: State<'_, AppState>,
+        conversation_id: String,
+        input: AppendMessageInput,
+    ) -> AppResult<ConversationMessage> {
+        append_conversation_message(&state.conversation_service, conversation_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub async fn developer_chat_send(
+        state: State<'_, AppState>,
+        request: DeveloperChatSendRequest,
+    ) -> AppResult<DeveloperChatSendResult> {
+        super::developer_chat_send(
+            &state.conversation_service,
+            &state.provider_registry,
+            &state.context_compiler,
+            &state.context_source,
+            request,
+        )
+        .await
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn memory_tool_propose(
+        state: State<'_, AppState>,
+        request: MemoryToolRequest,
+    ) -> AppResult<crate::domain::revision::MemoryProposal> {
+        super::memory_tool_propose(&state.memory_tool_service, request)
     }
 
     #[tauri::command]

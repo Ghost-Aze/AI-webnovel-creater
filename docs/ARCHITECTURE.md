@@ -190,10 +190,25 @@ responses are passed only as temporary working-memory blocks. The
 canonical memory, persists run history or exposes credentials. Streaming,
 retry/failover and user-facing chat remain later boundaries.
 
+## Phase 10 developer chat
+
+`Conversation` and `ConversationMessage` are separate from canonical memory.
+Conversations are project-scoped and messages have a unique monotonic sequence
+with role/content and optional model metadata. The `developer_chat_send`
+command stores the user turn, passes only recent messages as temporary working
+memory to `NarrativeOrchestrator`, and stores the final assistant turn after a
+successful run. Provider failures never create a partial assistant message.
+
+`memory_tool_propose` is a typed character-update action that delegates to the
+existing `ProposalService` with `actor_type = ai`. It produces a draft proposal
+and cannot update Character or CharacterState directly; promotion remains a
+user-controlled revision operation. Chat UI, streaming and automatic memory
+extraction remain later work.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes; manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character`, `CharacterState`, `Conversation` and `ConversationMessage`, with generic revision/proposal infrastructure for canonical memory. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes. Phase 10 supplies durable Developer Chat and proposal-backed memory tools; manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.

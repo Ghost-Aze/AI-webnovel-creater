@@ -1,9 +1,11 @@
 pub mod characters;
 pub mod commands;
 pub mod context;
+pub mod conversations;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod memory_tools;
 pub mod orchestration;
 pub mod projects;
 pub mod provider;
@@ -12,8 +14,10 @@ pub mod revisions;
 #[derive(Clone)]
 pub struct AppState {
     pub character_service: characters::service::CharacterService,
+    pub conversation_service: conversations::service::ConversationService,
     pub context_compiler: context::ContextCompiler,
     pub context_source: context::ServiceContextSource,
+    pub memory_tool_service: memory_tools::MemoryToolService,
     pub project_service: projects::service::ProjectService,
     pub provider_registry: provider::ProviderRegistry,
     pub provider_runtime: provider::ProviderRuntime,
@@ -45,6 +49,10 @@ pub fn run() {
             let character_service = characters::service::CharacterService::new(
                 characters::repository::CharacterRepository::new(database.clone()),
             );
+            let conversation_service = conversations::service::ConversationService::new(
+                conversations::repository::ConversationRepository::new(database.clone()),
+                projects::repository::ProjectRepository::new(database.clone()),
+            );
             let revision_service = revisions::service::RevisionService::new(
                 revisions::repository::RevisionRepository::new(database.clone()),
                 characters::repository::CharacterRepository::new(database.clone()),
@@ -53,6 +61,8 @@ pub fn run() {
                 revisions::repository::RevisionRepository::new(database.clone()),
                 characters::repository::CharacterRepository::new(database.clone()),
             );
+            let memory_tool_service =
+                memory_tools::MemoryToolService::new(proposal_service.clone());
             let context_source =
                 context::ServiceContextSource::new(service.clone(), character_service.clone());
             let provider_runtime =
@@ -60,8 +70,10 @@ pub fn run() {
             let provider_registry = provider_runtime.registry();
             app.manage(AppState {
                 character_service,
+                conversation_service,
                 context_compiler: context::ContextCompiler::default(),
                 context_source,
+                memory_tool_service,
                 project_service: service,
                 provider_registry,
                 provider_runtime,
@@ -76,6 +88,13 @@ pub fn run() {
             commands::project_get,
             commands::project_update,
             commands::project_archive,
+            commands::conversation_create,
+            commands::conversation_list,
+            commands::conversation_get,
+            commands::conversation_message_list,
+            commands::conversation_message_append,
+            commands::developer_chat_send,
+            commands::memory_tool_propose,
             commands::character_create,
             commands::character_list,
             commands::character_get,

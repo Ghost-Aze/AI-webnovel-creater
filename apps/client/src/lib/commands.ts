@@ -24,6 +24,16 @@ import type {
 } from "../types/project";
 import type { CompiledContext, ContextCompileRequest } from "../types/context";
 import type {
+  AppendMessageInput,
+  Conversation,
+  ConversationListFilter,
+  ConversationMessage,
+  CreateConversationInput,
+  DeveloperChatSendRequest,
+  DeveloperChatSendResult,
+  MemoryToolRequest,
+} from "../types/conversation";
+import type {
   OrchestrationRequest,
   OrchestrationResult,
 } from "../types/orchestration";
@@ -73,6 +83,46 @@ export function updateProject(
 
 export function archiveProject(id: string): Promise<Project> {
   return call<Project>("project_archive", { id });
+}
+
+export function createConversation(
+  input: CreateConversationInput,
+): Promise<Conversation> {
+  return call<Conversation>("conversation_create", { input });
+}
+
+export function listConversations(
+  projectId: string,
+  filter: ConversationListFilter = { kind: null },
+): Promise<Conversation[]> {
+  return call<Conversation[]>("conversation_list", {
+    project_id: projectId,
+    filter,
+  });
+}
+
+export function getConversation(id: string): Promise<Conversation> {
+  return call<Conversation>("conversation_get", { id });
+}
+
+export function listConversationMessages(
+  conversationId: string,
+  limit: number | null = null,
+): Promise<ConversationMessage[]> {
+  return call<ConversationMessage[]>("conversation_message_list", {
+    conversation_id: conversationId,
+    limit,
+  });
+}
+
+export function appendConversationMessage(
+  conversationId: string,
+  input: AppendMessageInput,
+): Promise<ConversationMessage> {
+  return call<ConversationMessage>("conversation_message_append", {
+    conversation_id: conversationId,
+    input,
+  });
 }
 
 export function createCharacter(
@@ -221,6 +271,18 @@ export function runOrchestrator(
   request: OrchestrationRequest,
 ): Promise<OrchestrationResult> {
   return call<OrchestrationResult>("orchestrator_run", { request });
+}
+
+export function sendDeveloperChat(
+  request: DeveloperChatSendRequest,
+): Promise<DeveloperChatSendResult> {
+  return call<DeveloperChatSendResult>("developer_chat_send", { request });
+}
+
+export function proposeMemoryTool(
+  request: MemoryToolRequest,
+): Promise<Proposal> {
+  return call<Proposal>("memory_tool_propose", { request });
 }
 
 export function generateProvider(

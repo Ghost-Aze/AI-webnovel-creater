@@ -10,19 +10,26 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 import {
   createCharacter,
+  createConversation,
   createProject,
+  appendConversationMessage,
   compileContext,
   configureProvider,
   generateProvider,
   getCredentialStoreStatus,
   getCharacterState,
+  getConversation,
   getProject,
+  listConversationMessages,
+  listConversations,
   listModels,
   listMemoryHistory,
   listProviders,
   removeProvider,
+  proposeMemoryTool,
   routeModel,
   runOrchestrator,
+  sendDeveloperChat,
   restoreMemory,
   setMemoryCanonStatus,
   updateCharacter,
@@ -30,6 +37,11 @@ import {
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
+import type {
+  CreateConversationInput,
+  DeveloperChatSendRequest,
+  MemoryToolRequest,
+} from "../types/conversation";
 import type { OrchestrationRequest } from "../types/orchestration";
 import type {
   GenerateRequest,
@@ -111,6 +123,95 @@ describe("typed project commands", () => {
       entity_id: "character-id",
       status: "locked_canon",
       expected_revision: 2,
+    });
+  });
+
+  it("uses typed Developer Chat and memory-tool command payloads", async () => {
+    const input: CreateConversationInput = {
+      project_id: "project-id",
+      kind: "developer_chat",
+      title: "Developer Chat",
+    };
+    invokeMock.mockResolvedValueOnce({ id: "conversation-id" });
+    await createConversation(input);
+    expect(invokeMock).toHaveBeenCalledWith("conversation_create", { input });
+
+    invokeMock.mockResolvedValueOnce([]);
+    await listConversations("project-id");
+    expect(invokeMock).toHaveBeenCalledWith("conversation_list", {
+      project_id: "project-id",
+      filter: { kind: null },
+    });
+
+    invokeMock.mockResolvedValueOnce({ id: "conversation-id" });
+    await getConversation("conversation-id");
+    expect(invokeMock).toHaveBeenCalledWith("conversation_get", {
+      id: "conversation-id",
+    });
+
+    invokeMock.mockResolvedValueOnce([]);
+    await listConversationMessages("conversation-id", 20);
+    expect(invokeMock).toHaveBeenCalledWith("conversation_message_list", {
+      conversation_id: "conversation-id",
+      limit: 20,
+    });
+
+    const appendInput = {
+      role: "user" as const,
+      content: "Update the character.",
+      model: null,
+    };
+    invokeMock.mockResolvedValueOnce({ id: "message-id" });
+    await appendConversationMessage("conversation-id", appendInput);
+    expect(invokeMock).toHaveBeenCalledWith("conversation_message_append", {
+      conversation_id: "conversation-id",
+      input: appendInput,
+    });
+
+    const chatRequest: DeveloperChatSendRequest = {
+      conversation_id: "conversation-id",
+      task: "main_writing",
+      quality: "balanced",
+      preferred_model: null,
+      required_capabilities: {
+        streaming: false,
+        embeddings: false,
+        tools: false,
+        vision: false,
+        structured_output: false,
+        prompt_caching: false,
+      },
+      minimum_context_window_tokens: null,
+      system_instructions: "Stay within canon.",
+      character_ids: [],
+      include_character_states: false,
+      context_budget: {
+        output_reserve_tokens: null,
+        safety_margin_tokens: 0,
+      },
+      message: "Draft the next scene.",
+      temperature: 0.4,
+    };
+    invokeMock.mockResolvedValueOnce({});
+    await sendDeveloperChat(chatRequest);
+    expect(invokeMock).toHaveBeenCalledWith("developer_chat_send", {
+      request: chatRequest,
+    });
+
+    const memoryRequest: MemoryToolRequest = {
+      project_id: "project-id",
+      character_id: "character-id",
+      base_revision: 2,
+      actor_id: "developer-chat",
+      action: {
+        action: "update_character",
+        input: { name: "Mira Vale", summary: "Scout", role: null },
+      },
+    };
+    invokeMock.mockResolvedValueOnce({ id: "proposal-id" });
+    await proposeMemoryTool(memoryRequest);
+    expect(invokeMock).toHaveBeenCalledWith("memory_tool_propose", {
+      request: memoryRequest,
     });
   });
 
