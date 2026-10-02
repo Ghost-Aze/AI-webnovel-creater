@@ -42,6 +42,8 @@ export type ModelTask =
   | "main_writing"
   | "character_psychology"
   | "major_revision"
+  | "plot_analysis"
+  | "style_check"
   | "memory_extraction"
   | "summary"
   | "entity_extraction"

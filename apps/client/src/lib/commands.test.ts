@@ -22,6 +22,7 @@ import {
   listProviders,
   removeProvider,
   routeModel,
+  runOrchestrator,
   restoreMemory,
   setMemoryCanonStatus,
   updateCharacter,
@@ -29,6 +30,7 @@ import {
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
+import type { OrchestrationRequest } from "../types/orchestration";
 import type {
   GenerateRequest,
   ProviderConfigureInput,
@@ -198,6 +200,36 @@ describe("typed project commands", () => {
     await expect(routeModel(routingRequest)).resolves.toEqual(route);
     expect(invokeMock).toHaveBeenCalledWith("model_route", {
       request: routingRequest,
+    });
+
+    const orchestrationRequest: OrchestrationRequest = {
+      project_id: "project-id",
+      task: "main_writing",
+      quality: "fast",
+      preferred_model: null,
+      required_capabilities: routingRequest.required_capabilities,
+      minimum_context_window_tokens: null,
+      system_instructions: "Stay within canon.",
+      character_ids: [],
+      include_character_states: false,
+      working_memory: [],
+      context_budget: {
+        output_reserve_tokens: null,
+        safety_margin_tokens: 0,
+      },
+      user_prompt: "Draft the next scene.",
+      temperature: 0.4,
+    };
+    const orchestrationResult = {
+      plan: { task: "main_writing", quality: "fast", steps: [] },
+      steps: [],
+    } as const;
+    invokeMock.mockResolvedValueOnce(orchestrationResult);
+    await expect(runOrchestrator(orchestrationRequest)).resolves.toEqual(
+      orchestrationResult,
+    );
+    expect(invokeMock).toHaveBeenCalledWith("orchestrator_run", {
+      request: orchestrationRequest,
     });
 
     invokeMock.mockResolvedValueOnce({ blocks: [] });

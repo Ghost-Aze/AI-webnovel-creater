@@ -24,6 +24,10 @@ import type {
 } from "../types/project";
 import type { CompiledContext, ContextCompileRequest } from "../types/context";
 import type {
+  OrchestrationRequest,
+  OrchestrationResult,
+} from "../types/orchestration";
+import type {
   GenerateRequest,
   GenerateResponse,
   CredentialStoreStatus,
@@ -211,6 +215,12 @@ export function listModels(providerId?: string): Promise<ModelProfile[]> {
 
 export function routeModel(request: RoutingRequest): Promise<RouteDecision> {
   return call<RouteDecision>("model_route", { request });
+}
+
+export function runOrchestrator(
+  request: OrchestrationRequest,
+): Promise<OrchestrationResult> {
+  return call<OrchestrationResult>("orchestrator_run", { request });
 }
 
 export function generateProvider(

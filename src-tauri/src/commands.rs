@@ -1,6 +1,9 @@
 use crate::{
     characters::service::CharacterService,
-    context::{CompiledContext, ContextCompileRequest, ContextCompiler, ServiceContextSource},
+    context::{
+        CompiledContext, ContextCompileRequest, ContextCompiler, ContextSource,
+        ServiceContextSource,
+    },
     domain::character::{
         Character, CharacterListFilter, CharacterState, CreateCharacterInput, UpdateCharacterInput,
         UpdateCharacterStateInput,
@@ -11,6 +14,7 @@ use crate::{
         ProposalStatus,
     },
     error::AppResult,
+    orchestration::{NarrativeOrchestrator, OrchestrationRequest, OrchestrationResult},
     provider::{
         CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile, ModelRouter,
         ProviderConfigureInput, ProviderConfigureResult, ProviderDescriptor, ProviderRegistry,
@@ -237,6 +241,20 @@ pub fn route_model(
     report(
         "model_route",
         ModelRouter.route(registry, request).map_err(Into::into),
+    )
+}
+
+pub async fn orchestrate(
+    registry: &ProviderRegistry,
+    compiler: &ContextCompiler,
+    source: &dyn ContextSource,
+    request: OrchestrationRequest,
+) -> AppResult<OrchestrationResult> {
+    report(
+        "orchestrator_run",
+        NarrativeOrchestrator
+            .run(registry, compiler, source, request)
+            .await,
     )
 }
 
@@ -504,6 +522,20 @@ mod tauri_commands {
         route_model(&state.provider_registry, request)
     }
 
+    #[tauri::command(rename_all = "snake_case")]
+    pub async fn orchestrator_run(
+        state: State<'_, AppState>,
+        request: OrchestrationRequest,
+    ) -> AppResult<OrchestrationResult> {
+        orchestrate(
+            &state.provider_registry,
+            &state.context_compiler,
+            &state.context_source,
+            request,
+        )
+        .await
+    }
+
     #[tauri::command]
     pub fn context_compile(
         state: State<'_, AppState>,
@@ -565,6 +597,7 @@ mod tests {
             project::{ProjectStatus, UpdateProjectInput},
         },
         error::AppError,
+        orchestration::OrchestrationRequest,
         projects::{repository::ProjectRepository, service::ProjectService},
         provider::{
             EphemeralCredentialStore, GenerateRequest, MockProvider, ModelProfile, ModelRef,
@@ -732,6 +765,66 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(response.text, "mock response: Hello");
+    }
+
+    #[test]
+    fn orchestrator_helper_runs_typed_pipeline_without_memory_writes() {
+        let registry = ProviderRegistry::new();
+        registry
+            .register(Arc::new(MockProvider::new(
+                ProviderDescriptor {
+                    id: "mock".into(),
+                    display_name: "Mock".into(),
+                },
+                vec![ModelProfile {
+                    provider_id: "mock".into(),
+                    model_id: "writer".into(),
+                    display_name: "Writer".into(),
+                    context_window_tokens: 4096,
+                    default_output_tokens: 512,
+                    strengths: vec!["planning".into(), "prose".into()],
+                    weaknesses: Vec::new(),
+                    strategy: Vec::new(),
+                    tier: crate::provider::ModelTier::Medium,
+                    capabilities: ProviderCapabilities::default(),
+                }],
+            )))
+            .unwrap();
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let characters = crate::characters::service::CharacterService::new(
+            crate::characters::repository::CharacterRepository::new(connection),
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Orchestrated project".into(),
+                description: Some("A premise".into()),
+            })
+            .unwrap();
+        let source = ServiceContextSource::new(projects, characters);
+        let result = block_on(orchestrate(
+            &registry,
+            &ContextCompiler::default(),
+            &source,
+            OrchestrationRequest {
+                project_id: project.id,
+                task: ModelTask::MainWriting,
+                quality: QualityMode::Fast,
+                preferred_model: None,
+                required_capabilities: ProviderCapabilities::default(),
+                minimum_context_window_tokens: None,
+                system_instructions: "Stay within canon.".into(),
+                character_ids: Vec::new(),
+                include_character_states: false,
+                working_memory: Vec::new(),
+                context_budget: ContextBudget::default(),
+                user_prompt: "Draft a scene.".into(),
+                temperature: None,
+            },
+        ))
+        .unwrap();
+        assert_eq!(result.plan.steps.len(), 3);
+        assert_eq!(result.steps.len(), 3);
     }
 
     #[test]

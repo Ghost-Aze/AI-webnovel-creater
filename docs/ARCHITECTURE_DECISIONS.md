@@ -18,6 +18,7 @@ current Phase 1 implementation.
 - Phase 6 establishes the typed provider setup route and explicit credential-store status boundary. The cloud/headless runtime uses session-only ephemeral storage.
 - Phase 7 supplies target-specific Windows Credential Manager and Android Keystore-backed adapters. Native targets select those adapters at startup; unsupported and headless targets remain explicit and never fall back to plaintext storage. Provider descriptors and model profiles are still process-local until a later persistence phase.
 - Phase 8 supplies a pure `ModelRouter` and `model_route` command. Quality modes and logical task tags select among registered profiles without making provider calls; orchestration remains a separate phase.
+- Phase 9 supplies a sequential Narrative Orchestrator. It creates deterministic quality-mode plans, routes each step, compiles scoped context and executes through the provider contract without writing canonical memory or adding chat UI.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -72,6 +73,7 @@ current Phase 1 implementation.
 - Phase 6 exposes `CredentialStoreKind` and `provider_credential_status` without returning secrets. The provider settings form uses typed configure/remove commands, validates model budget metadata locally, and clears the API-key input after a successful submission.
 - Phase 7's `PlatformSecureCredentialStore` delegates to Windows Credential Manager or the Android-native Keystore-backed store behind a target-specific Rust boundary. Initialization and platform failures are normalized to typed availability/errors; missing entries map to `credential_not_found`, and no raw keyring detail or plaintext fallback is exposed.
 - Phase 8 adds `ModelTier`, `ModelTask`, `QualityMode` and deterministic capability/context-aware routing. Explicit user model choices remain authoritative when valid, and no suitable candidate returns a safe typed error rather than silently selecting an incompatible model.
+- Phase 9 adds typed logical-agent execution steps and temporary working-memory handoff. The orchestrator owns sequencing and provider invocation, while canonical memory writes remain outside the execution boundary.
 
 ## Manuscript and chat
 

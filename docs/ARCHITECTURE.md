@@ -24,7 +24,7 @@ migrations/                 ordered SQL files
 
 ## Command boundary
 
-The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; provider/model discovery and context preview remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
+The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`. Provider/model discovery, routing and context preview remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
 
 The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize one `ProjectService` and one `CharacterService` in Tauri managed state over the same SQLite connection.
 
@@ -175,10 +175,25 @@ or returns prompt/response data. `FAST` favors local/small helper models,
 large/medium models. No candidate returns `no_suitable_model`. Narrative
 orchestration and multi-call execution remain a later phase.
 
+## Phase 9 narrative orchestration
+
+`NarrativeOrchestrator` turns a typed task, quality mode and context request
+into a deterministic sequence of logical-agent steps. FAST uses planner,
+writer and memory-curator steps; BALANCED adds continuity review; DEEP adds
+continuity, style and revision steps. Planning-only and helper tasks use a
+single task-appropriate step.
+
+Each step independently calls `ModelRouter`, compiles context through the
+existing `ContextCompiler`, and invokes `AIProvider::generate`. Previous
+responses are passed only as temporary working-memory blocks. The
+`orchestrator_run` command returns typed step results and never writes
+canonical memory, persists run history or exposes credentials. Streaming,
+retry/failover and user-facing chat remain later boundaries.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing; orchestration, manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character` and `CharacterState`, with generic revision/proposal infrastructure for those entities. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes; manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.

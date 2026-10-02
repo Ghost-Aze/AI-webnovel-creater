@@ -4,6 +4,7 @@ pub mod context;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod orchestration;
 pub mod projects;
 pub mod provider;
 pub mod revisions;
@@ -92,6 +93,7 @@ pub fn run() {
             commands::provider_list,
             commands::model_list,
             commands::model_route,
+            commands::orchestrator_run,
             commands::context_compile,
             commands::provider_generate,
             commands::provider_configure,

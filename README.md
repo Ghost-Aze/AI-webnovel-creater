@@ -1,12 +1,12 @@
 # Webnovel AI Studio
 
-Webnovel AI Studio is a provider-independent workspace for planning and writing long-form fiction. The repository contains a Tauri 2 shell, React/TypeScript client, Rust application core, local SQLite persistence, structured character memory, revision safety, provider execution contracts, native credentials and the Phase 8 model-routing boundary.
+Webnovel AI Studio is a provider-independent workspace for planning and writing long-form fiction. The repository contains a Tauri 2 shell, React/TypeScript client, Rust application core, local SQLite persistence, structured character memory, revision safety, provider execution contracts, native credentials, model routing and the Phase 9 orchestration boundary.
 
 ## Current scope
 
 The current branch supports creating, listing, opening, renaming and archiving projects; structured Character and CharacterState memory; revision history and proposals; an OpenAI-compatible provider adapter; typed provider configure/remove commands; and a `/settings/providers` setup route. The responsive workspace shell, typed Tauri command boundary and SQLite migrations are implemented.
 
-Orchestration, semantic retrieval, continuity analysis, cloud novel-data sync and manuscript export remain later phases. Phase 8 routes logical tasks to registered model profiles using FAST/BALANCED/DEEP quality modes without making a provider call. Windows builds use Credential Manager and Android builds use Keystore-backed encrypted SharedPreferences through the Rust credential boundary. The cloud/headless runtime intentionally uses process-only credential storage and never writes API keys to SQLite.
+Phase 9 executes deterministic planner/writer/review pipelines through registered providers, while semantic retrieval, canonical memory extraction, cloud novel-data sync and manuscript export remain later phases. Phase 8 routes logical tasks to registered model profiles using FAST/BALANCED/DEEP quality modes; Phase 9 consumes those routes without exposing provider-specific logic to the client. Windows builds use Credential Manager and Android builds use Keystore-backed encrypted SharedPreferences through the Rust credential boundary. The cloud/headless runtime intentionally uses process-only credential storage and never writes API keys to SQLite.
 
 ## Local setup
 
