@@ -14,6 +14,7 @@ export type MessageRole = "system" | "user" | "assistant" | "tool";
 export interface Conversation {
   id: string;
   project_id: string;
+  chapter_id: string | null;
   kind: ConversationKind;
   title: string;
   created_at: string;
@@ -32,6 +33,7 @@ export interface ConversationMessage {
 
 export interface CreateConversationInput {
   project_id: string;
+  chapter_id?: string | null;
   kind: ConversationKind;
   title: string;
 }

@@ -18,6 +18,8 @@ import type {
 } from "../../types/manuscript";
 import { RichTextEditor } from "./rich-text";
 import { manuscriptToEditorHtml, sanitizeHtml } from "./rich-text-utils";
+import { ChapterChatPanel } from "./ChapterChatPanel";
+import { ManuscriptProposalPanel } from "./ManuscriptProposalPanel";
 
 const AUTOSAVE_DELAY_MS = 900;
 
@@ -47,6 +49,7 @@ export function ChapterEditorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [proposalRefreshKey, setProposalRefreshKey] = useState(0);
 
   const loadEditor = useCallback(async () => {
     if (!chapterId) return;
@@ -223,6 +226,27 @@ export function ChapterEditorPage() {
     }
   }
 
+  function handleProposalPromoted(updated: Manuscript) {
+    setManuscript(updated);
+    setContent(manuscriptToEditorHtml(updated.content, updated.content_format));
+    setRevisions((current) => [
+      {
+        id: `revision-${updated.revision}`,
+        manuscript_id: updated.id,
+        revision: updated.revision,
+        content: updated.content,
+        content_format: updated.content_format,
+        label: "AI proposal",
+        actor_type: "ai",
+        actor_id: "chapter-chat",
+        created_at: updated.updated_at,
+      },
+      ...current,
+    ]);
+    setIsDirty(false);
+    setSaveStatus("saved");
+  }
+
   if (isLoading)
     return (
       <p className="loading-state page-content" role="status">
@@ -329,6 +353,13 @@ export function ChapterEditorPage() {
               </button>
             </div>
           </form>
+          <ChapterChatPanel
+            projectId={chapter.project_id}
+            chapterId={chapter.id}
+            currentRevision={manuscript.revision}
+            disabled={archived}
+            onProposalCreated={() => setProposalRefreshKey((key) => key + 1)}
+          />
         </div>
         <aside className="editor-side-stack">
           <form
@@ -418,6 +449,13 @@ export function ChapterEditorPage() {
               ))}
             </div>
           </section>
+          <ManuscriptProposalPanel
+            chapterId={chapter.id}
+            currentRevision={manuscript.revision}
+            disabled={archived}
+            refreshKey={proposalRefreshKey}
+            onPromoted={handleProposalPromoted}
+          />
         </aside>
       </div>
     </section>

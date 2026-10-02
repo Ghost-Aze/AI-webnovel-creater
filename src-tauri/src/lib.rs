@@ -5,6 +5,7 @@ pub mod conversations;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod manuscript_proposals;
 pub mod manuscripts;
 pub mod memory_tools;
 pub mod orchestration;
@@ -20,6 +21,7 @@ pub struct AppState {
     pub context_source: context::ServiceContextSource,
     pub memory_tool_service: memory_tools::MemoryToolService,
     pub manuscript_service: manuscripts::service::ManuscriptService,
+    pub manuscript_proposal_service: manuscript_proposals::service::ManuscriptProposalService,
     pub project_service: projects::service::ProjectService,
     pub provider_registry: provider::ProviderRegistry,
     pub provider_runtime: provider::ProviderRuntime,
@@ -69,6 +71,13 @@ pub fn run() {
                 manuscripts::repository::ManuscriptRepository::new(database.clone()),
                 projects::repository::ProjectRepository::new(database.clone()),
             );
+            let manuscript_proposal_service =
+                manuscript_proposals::service::ManuscriptProposalService::new(
+                    manuscript_proposals::repository::ManuscriptProposalRepository::new(
+                        database.clone(),
+                    ),
+                    projects::repository::ProjectRepository::new(database.clone()),
+                );
             let context_source =
                 context::ServiceContextSource::new(service.clone(), character_service.clone());
             let provider_runtime =
@@ -81,6 +90,7 @@ pub fn run() {
                 context_source,
                 memory_tool_service,
                 manuscript_service,
+                manuscript_proposal_service,
                 project_service: service,
                 provider_registry,
                 provider_runtime,
@@ -101,6 +111,7 @@ pub fn run() {
             commands::conversation_message_list,
             commands::conversation_message_append,
             commands::developer_chat_send,
+            commands::chapter_chat_send,
             commands::memory_tool_propose,
             commands::chapter_create,
             commands::chapter_list,
@@ -111,6 +122,11 @@ pub fn run() {
             commands::manuscript_save,
             commands::manuscript_revision_list,
             commands::manuscript_restore,
+            commands::manuscript_proposal_create,
+            commands::manuscript_proposal_list,
+            commands::manuscript_proposal_get,
+            commands::manuscript_proposal_promote,
+            commands::manuscript_proposal_reject,
             commands::character_create,
             commands::character_list,
             commands::character_get,

@@ -9,6 +9,14 @@ const listRevisionsMock = vi.hoisted(() => vi.fn());
 const saveManuscriptMock = vi.hoisted(() => vi.fn());
 const restoreManuscriptMock = vi.hoisted(() => vi.fn());
 const updateChapterMock = vi.hoisted(() => vi.fn());
+const listConversationsMock = vi.hoisted(() => vi.fn());
+const createConversationMock = vi.hoisted(() => vi.fn());
+const listConversationMessagesMock = vi.hoisted(() => vi.fn());
+const listProposalsMock = vi.hoisted(() => vi.fn());
+const chapterChatSendMock = vi.hoisted(() => vi.fn());
+const createProposalMock = vi.hoisted(() => vi.fn());
+const promoteProposalMock = vi.hoisted(() => vi.fn());
+const rejectProposalMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
   getChapter: getChapterMock,
@@ -17,6 +25,14 @@ vi.mock("../lib/commands", () => ({
   saveManuscript: saveManuscriptMock,
   restoreManuscript: restoreManuscriptMock,
   updateChapter: updateChapterMock,
+  listConversations: listConversationsMock,
+  createConversation: createConversationMock,
+  listConversationMessages: listConversationMessagesMock,
+  listManuscriptProposals: listProposalsMock,
+  chapterChatSend: chapterChatSendMock,
+  createManuscriptProposal: createProposalMock,
+  promoteManuscriptProposal: promoteProposalMock,
+  rejectManuscriptProposal: rejectProposalMock,
 }));
 
 import { ChapterEditorPage } from "../features/manuscripts/ChapterEditorPage";
@@ -86,6 +102,19 @@ describe("ChapterEditorPage", () => {
       content: "The gate waited.",
     });
     updateChapterMock.mockResolvedValue({ ...chapter, revision: 2 });
+    listConversationsMock.mockResolvedValue([
+      {
+        id: "conversation-1",
+        project_id: "project-1",
+        chapter_id: "chapter-1",
+        kind: "chapter_chat",
+        title: "Chapter Chat",
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-01T00:00:00Z",
+      },
+    ]);
+    listConversationMessagesMock.mockResolvedValue([]);
+    listProposalsMock.mockResolvedValue([]);
   });
 
   it("loads prose, saves a new revision and exposes restore", async () => {

@@ -31,6 +31,17 @@ impl ConversationService {
         if project.status == ProjectStatus::Archived {
             return Err(AppError::ArchivedProject);
         }
+        if input.kind == crate::domain::conversation::ConversationKind::ChapterChat {
+            let chapter_id = input.chapter_id.as_deref().ok_or(AppError::Validation {
+                message: "Chapter chat requires a chapter.".into(),
+            })?;
+            self.projects
+                .chapter_belongs_to_project(chapter_id, &input.project_id)?;
+        } else if input.chapter_id.is_some() {
+            return Err(AppError::Validation {
+                message: "Only chapter chat conversations may reference a chapter.".into(),
+            });
+        }
         self.repository.create(&build_conversation(input)?)
     }
 
@@ -100,6 +111,7 @@ mod tests {
         let conversation = conversations
             .create(CreateConversationInput {
                 project_id: project.id,
+                chapter_id: None,
                 kind: ConversationKind::DeveloperChat,
                 title: "Developer chat".into(),
             })
@@ -154,11 +166,46 @@ mod tests {
             conversations
                 .create(CreateConversationInput {
                     project_id: project.id,
+                    chapter_id: None,
                     kind: ConversationKind::DeveloperChat,
                     title: "No chat".into(),
                 })
                 .unwrap_err(),
             AppError::ArchivedProject
         );
+    }
+
+    #[test]
+    fn chapter_chat_requires_a_chapter_owned_by_the_project() {
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let conversations = ConversationService::new(
+            ConversationRepository::new(connection.clone()),
+            ProjectRepository::new(connection.clone()),
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Scoped chat".into(),
+                description: None,
+            })
+            .unwrap();
+        assert!(matches!(
+            conversations.create(CreateConversationInput {
+                project_id: project.id.clone(),
+                chapter_id: None,
+                kind: ConversationKind::ChapterChat,
+                title: "Missing chapter".into(),
+            }),
+            Err(AppError::Validation { .. })
+        ));
+        assert!(matches!(
+            conversations.create(CreateConversationInput {
+                project_id: project.id,
+                chapter_id: Some("unknown".into()),
+                kind: ConversationKind::ChapterChat,
+                title: "Unknown chapter".into(),
+            }),
+            Err(AppError::NotFound)
+        ));
     }
 }

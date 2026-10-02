@@ -1026,6 +1026,86 @@ p {
   font-size: 9px;
 }
 
+.chapter-chat-panel,
+.manuscript-proposal-panel {
+  margin-top: 16px;
+  padding: 18px;
+}
+
+.chapter-chat-messages {
+  display: grid;
+  gap: 8px;
+  max-height: 330px;
+  overflow: auto;
+  margin-bottom: 12px;
+}
+
+.chapter-chat-message {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(15, 20, 31, 0.65);
+}
+
+.chapter-chat-message small {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.chapter-chat-message p {
+  margin: 5px 0 9px;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chapter-chat-composer {
+  display: grid;
+  gap: 8px;
+}
+
+.chapter-chat-composer textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.manuscript-proposal-list {
+  display: grid;
+  gap: 10px;
+}
+
+.manuscript-proposal {
+  padding: 11px;
+  border: 1px solid rgba(169, 151, 255, 0.24);
+  border-radius: 7px;
+  background: rgba(169, 151, 255, 0.06);
+}
+
+.manuscript-proposal p {
+  margin: 0 0 7px;
+  color: var(--soft);
+  font-size: 11px;
+}
+
+.manuscript-proposal pre {
+  max-height: 150px;
+  overflow: auto;
+  margin: 0 0 8px;
+  color: #e9edf6;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.manuscript-proposal small {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
 .workspace-side-stack {
   display: grid;
   align-content: start;

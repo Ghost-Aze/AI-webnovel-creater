@@ -9,11 +9,13 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import {
+  appendConversationMessage,
+  chapterChatSend,
   createCharacter,
   createConversation,
   createChapter,
+  createManuscriptProposal,
   createProject,
-  appendConversationMessage,
   compileContext,
   configureProvider,
   generateProvider,
@@ -25,12 +27,15 @@ import {
   listConversationMessages,
   listConversations,
   listChapters,
+  listManuscriptProposals,
   listManuscriptRevisions,
   listModels,
   listMemoryHistory,
   listProviders,
   removeProvider,
   proposeMemoryTool,
+  promoteManuscriptProposal,
+  rejectManuscriptProposal,
   routeModel,
   restoreManuscript,
   saveManuscript,
@@ -135,6 +140,7 @@ describe("typed project commands", () => {
   it("uses typed Developer Chat and memory-tool command payloads", async () => {
     const input: CreateConversationInput = {
       project_id: "project-id",
+      chapter_id: null,
       kind: "developer_chat",
       title: "Developer Chat",
     };
@@ -204,6 +210,13 @@ describe("typed project commands", () => {
       request: chatRequest,
     });
 
+    invokeMock.mockResolvedValueOnce({});
+    await chapterChatSend("chapter-id", chatRequest);
+    expect(invokeMock).toHaveBeenCalledWith("chapter_chat_send", {
+      chapter_id: "chapter-id",
+      request: chatRequest,
+    });
+
     const memoryRequest: MemoryToolRequest = {
       project_id: "project-id",
       character_id: "character-id",
@@ -270,6 +283,40 @@ describe("typed project commands", () => {
       chapter_id: "chapter-id",
       revision: 1,
       expected_revision: 2,
+    });
+
+    const proposalInput = {
+      chapter_id: "chapter-id",
+      base_revision: 2,
+      proposed_content: "A revised scene.",
+      content_format: "plain_text" as const,
+      rationale: "Tighten pacing",
+    };
+    invokeMock.mockResolvedValueOnce({ id: "proposal-id" });
+    await createManuscriptProposal("project-id", proposalInput);
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_proposal_create", {
+      project_id: "project-id",
+      input: proposalInput,
+    });
+
+    invokeMock.mockResolvedValueOnce([]);
+    await listManuscriptProposals("chapter-id", "draft");
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_proposal_list", {
+      chapter_id: "chapter-id",
+      status: "draft",
+    });
+
+    invokeMock.mockResolvedValueOnce({ revision: 3 });
+    await promoteManuscriptProposal("proposal-id", 2);
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_proposal_promote", {
+      id: "proposal-id",
+      expected_revision: 2,
+    });
+
+    invokeMock.mockResolvedValueOnce({ status: "rejected" });
+    await rejectManuscriptProposal("proposal-id");
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_proposal_reject", {
+      id: "proposal-id",
     });
   });
 

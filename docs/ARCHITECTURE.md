@@ -24,7 +24,7 @@ migrations/                 ordered SQL files
 
 ## Command boundary
 
-The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`. Provider/model discovery, routing and context preview remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
+The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`; Phase 13 adds `chapter_chat_send` and the `manuscript_proposal_*` lifecycle commands. Provider/model discovery, routing, context preview, Chapter Chat and proposal review remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
 
 The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize one `ProjectService` and one `CharacterService` in Tauri managed state over the same SQLite connection.
 
@@ -215,9 +215,9 @@ archived projects reject new or mutating chapter work. Each chapter receives one
 `manuscript_revisions` is an append-only snapshot history. A save includes the
 revision the editor last loaded and is committed only when it still matches the
 current document revision. A stale save returns `conflict`, while restore reads
-an old snapshot and creates a new revision, preserving history. The current
-Phase 11 editor intentionally uses a plain textarea; rich text, autosave and
-collaborative conflict merging remain later phases.
+an old snapshot and creates a new revision, preserving history. Phase 12 adds
+format-aware rich text, autosave and explicit conflict controls; collaborative
+merge remains a later phase.
 
 The `chapter_*` and `manuscript_*` Tauri commands are exposed through typed
 TypeScript wrappers. `ChapterPanel` lists and creates chapter records from the
@@ -243,10 +243,34 @@ copy and disables further edits until the user chooses `Use server copy` or
 `Keep my local copy`. The latter writes an explicit new revision against the
 server base; neither path silently overwrites prose.
 
+## Phase 13 Chapter Chat and manuscript proposals
+
+Migration `0007_chapter_chat_proposals.sql` adds an optional `chapter_id` to
+conversations and a typed `manuscript_proposals` table. The conversation service
+requires Chapter Chat to reference a chapter owned by the same project; other
+conversation kinds cannot carry a chapter reference.
+
+`ChapterChatService` reuses the provider-independent orchestrator and passes a
+bounded conversation history plus the current manuscript as transient working
+memory. Provider output is stored as a chat message only. The Chapter Chat UI
+can create a complete-body `ManuscriptProposal` in `draft` status; it never
+writes the canonical manuscript directly.
+
+Proposal promotion checks the chapter status, proposal base revision and current
+manuscript revision inside one SQLite transaction. A successful promotion writes
+the next immutable `manuscript_revisions` snapshot and marks the proposal
+`accepted`; stale or already-processed proposals return a typed conflict or
+invalid-proposal error. Rejecting a draft changes only its proposal status.
+
+`ChapterChatPanel` and `ManuscriptProposalPanel` are deliberately thin clients
+over typed commands. The editor refreshes its manuscript state after promotion,
+while semantic retrieval, streaming, automatic extraction and prose merge
+algorithms remain outside this phase.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character`, `CharacterState`, `Conversation`, `ConversationMessage`, `Chapter`, `Manuscript` and `ManuscriptRevision`, with generic revision/proposal infrastructure for canonical memory. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes. Phase 10 supplies durable Developer Chat and proposal-backed memory tools. Phase 11 supplies revision-safe manuscript documents and Phase 12 adds format-aware rich-text editing, autosave and explicit conflicts; semantic search, relationships, collaboration, sync and export remain later work. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character`, `CharacterState`, `Conversation`, `ConversationMessage`, `Chapter`, `Manuscript`, `ManuscriptRevision` and `ManuscriptProposal`, with generic revision/proposal infrastructure for canonical memory. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes. Phase 10 supplies durable Developer Chat and proposal-backed memory tools. Phase 11 supplies revision-safe manuscript documents, Phase 12 adds format-aware rich-text editing, autosave and explicit conflicts, and Phase 13 adds Chapter Chat with explicit manuscript promotion. Semantic search, relationships, collaboration, sync and export remain later work. New memory entities must remain structured and provider-independent.

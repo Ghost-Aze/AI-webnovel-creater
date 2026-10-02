@@ -6,6 +6,7 @@ use crate::{
         AppendMessageInput, Conversation, ConversationKind, ConversationMessage, MessageRole,
     },
     error::{AppError, AppResult},
+    manuscripts::service::ManuscriptService,
     orchestration::{NarrativeOrchestrator, OrchestrationRequest, OrchestrationResult},
     provider::{ModelRef, ModelTask, ProviderCapabilities, ProviderRegistry, QualityMode},
 };
@@ -48,10 +49,31 @@ impl DeveloperChatService {
         context_source: &ServiceContextSource,
         request: DeveloperChatSendRequest,
     ) -> AppResult<DeveloperChatSendResult> {
+        Self::send_for_kind(
+            conversations,
+            registry,
+            compiler,
+            context_source,
+            request,
+            ConversationKind::DeveloperChat,
+            Vec::new(),
+        )
+        .await
+    }
+
+    pub async fn send_for_kind(
+        conversations: &ConversationService,
+        registry: &ProviderRegistry,
+        compiler: &ContextCompiler,
+        context_source: &ServiceContextSource,
+        request: DeveloperChatSendRequest,
+        expected_kind: ConversationKind,
+        additional_working_memory: Vec<WorkingMemoryBlock>,
+    ) -> AppResult<DeveloperChatSendResult> {
         let conversation = conversations.get(&request.conversation_id)?;
-        if conversation.kind != ConversationKind::DeveloperChat {
+        if conversation.kind != expected_kind {
             return Err(AppError::Validation {
-                message: "Only developer chat conversations accept this command.".into(),
+                message: "This conversation kind does not accept the requested command.".into(),
             });
         }
         let previous_messages = conversations.list_messages(&conversation.id, Some(20))?;
@@ -63,14 +85,15 @@ impl DeveloperChatService {
                 model: None,
             },
         )?;
-        let working_memory = previous_messages
+        let mut working_memory = previous_messages
             .iter()
             .map(|message| WorkingMemoryBlock {
                 id: format!("conversation:{}", message.id),
                 label: format!("{} message", message.role.as_str()),
                 content: message.content.clone(),
             })
-            .collect();
+            .collect::<Vec<_>>();
+        working_memory.extend(additional_working_memory);
         let orchestrator_request = OrchestrationRequest {
             project_id: conversation.project_id.clone(),
             task: request.task,
@@ -107,6 +130,45 @@ impl DeveloperChatService {
     }
 }
 
+#[derive(Clone)]
+pub struct ChapterChatService;
+
+impl ChapterChatService {
+    pub async fn send(
+        conversations: &ConversationService,
+        manuscripts: &ManuscriptService,
+        registry: &ProviderRegistry,
+        compiler: &ContextCompiler,
+        context_source: &ServiceContextSource,
+        chapter_id: &str,
+        request: DeveloperChatSendRequest,
+    ) -> AppResult<DeveloperChatSendResult> {
+        let conversation = conversations.get(&request.conversation_id)?;
+        if conversation.kind != ConversationKind::ChapterChat
+            || conversation.chapter_id.as_deref() != Some(chapter_id)
+        {
+            return Err(AppError::Validation {
+                message: "Chapter chat must belong to the requested chapter.".into(),
+            });
+        }
+        let manuscript = manuscripts.get_manuscript(chapter_id)?;
+        DeveloperChatService::send_for_kind(
+            conversations,
+            registry,
+            compiler,
+            context_source,
+            request,
+            ConversationKind::ChapterChat,
+            vec![WorkingMemoryBlock {
+                id: format!("manuscript:{chapter_id}"),
+                label: "Current manuscript".into(),
+                content: manuscript.content,
+            }],
+        )
+        .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -119,8 +181,10 @@ mod tests {
         db,
         domain::{
             conversation::{ConversationKind, CreateConversationInput, MessageRole},
+            manuscript::CreateChapterInput,
             project::CreateProjectInput,
         },
+        manuscripts::{repository::ManuscriptRepository, service::ManuscriptService},
         projects::{repository::ProjectRepository, service::ProjectService},
         provider::{MockProvider, ModelProfile, ProviderDescriptor},
     };
@@ -179,6 +243,7 @@ mod tests {
         let conversation = conversations
             .create(CreateConversationInput {
                 project_id: project.id.clone(),
+                chapter_id: None,
                 kind: ConversationKind::DeveloperChat,
                 title: "Developer Chat".into(),
             })
@@ -250,5 +315,86 @@ mod tests {
         let messages = conversations.list_messages(&conversation_id, None).unwrap();
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].role, MessageRole::User);
+    }
+
+    #[test]
+    fn chapter_chat_scopes_conversation_and_includes_current_manuscript() {
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let characters = CharacterService::new(CharacterRepository::new(connection.clone()));
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Chapter Chat project".into(),
+                description: None,
+            })
+            .unwrap();
+        let manuscripts = ManuscriptService::new(
+            ManuscriptRepository::new(connection.clone()),
+            ProjectRepository::new(connection.clone()),
+        );
+        let chapter = manuscripts
+            .create_chapter(
+                project.id.clone(),
+                CreateChapterInput {
+                    number: 1,
+                    title: "Opening".into(),
+                    synopsis: None,
+                },
+            )
+            .unwrap();
+        manuscripts
+            .save_manuscript(
+                &chapter.id,
+                crate::domain::manuscript::SaveManuscriptInput {
+                    content: "The gate waited.".into(),
+                    content_format: None,
+                    label: Some("Draft".into()),
+                    actor_type: None,
+                    actor_id: None,
+                    expected_revision: 1,
+                },
+            )
+            .unwrap();
+        let conversations = ConversationService::new(
+            super::super::repository::ConversationRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let conversation = conversations
+            .create(CreateConversationInput {
+                project_id: project.id,
+                chapter_id: Some(chapter.id.clone()),
+                kind: ConversationKind::ChapterChat,
+                title: "Chapter Chat".into(),
+            })
+            .unwrap();
+        let provider = Arc::new(MockProvider::new(
+            ProviderDescriptor {
+                id: "mock".into(),
+                display_name: "Mock".into(),
+            },
+            vec![profile()],
+        ));
+        let registry = ProviderRegistry::new();
+        registry.register(provider).unwrap();
+        let source = ServiceContextSource::new(projects, characters);
+        let result = block_on(ChapterChatService::send(
+            &conversations,
+            &manuscripts,
+            &registry,
+            &crate::context::ContextCompiler::default(),
+            &source,
+            &chapter.id,
+            request(conversation.id.clone()),
+        ))
+        .unwrap();
+        assert_eq!(
+            result.conversation.chapter_id.as_deref(),
+            Some(chapter.id.as_str())
+        );
+        assert!(result.orchestration.steps[0]
+            .context
+            .blocks
+            .iter()
+            .any(|block| block.content.contains("The gate waited.")));
     }
 }

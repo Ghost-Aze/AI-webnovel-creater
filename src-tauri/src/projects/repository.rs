@@ -46,6 +46,24 @@ impl ProjectRepository {
             })
     }
 
+    pub fn chapter_belongs_to_project(&self, chapter_id: &str, project_id: &str) -> AppResult<()> {
+        let connection = self.connection.lock()?;
+        let owner: String = connection
+            .query_row(
+                "SELECT project_id FROM chapters WHERE id = ?1",
+                [chapter_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => AppError::NotFound,
+                other => other.into(),
+            })?;
+        if owner != project_id {
+            return Err(AppError::NotFound);
+        }
+        Ok(())
+    }
+
     pub fn list(&self, filter: ProjectListFilter) -> AppResult<Vec<Project>> {
         let connection = self.connection.lock()?;
         let mut statement = if filter.include_archived {

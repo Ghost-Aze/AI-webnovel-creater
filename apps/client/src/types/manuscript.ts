@@ -1,6 +1,7 @@
 export type ChapterStatus = "draft" | "final" | "archived";
 export type ManuscriptActorType = "user" | "ai" | "system";
 export type ManuscriptContentFormat = "plain_text" | "html";
+export type ManuscriptProposalStatus = "draft" | "accepted" | "rejected";
 
 export interface Chapter {
   id: string;
@@ -60,4 +61,29 @@ export interface SaveManuscriptInput {
   actor_type?: ManuscriptActorType | null;
   actor_id?: string | null;
   expected_revision: number;
+}
+
+export interface ManuscriptProposal {
+  id: string;
+  project_id: string;
+  chapter_id: string;
+  base_revision: number;
+  proposed_content: string;
+  content_format: ManuscriptContentFormat;
+  rationale: string;
+  status: ManuscriptProposalStatus;
+  actor_type: ManuscriptActorType;
+  actor_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateManuscriptProposalInput {
+  chapter_id: string;
+  base_revision: number;
+  proposed_content: string;
+  content_format: ManuscriptContentFormat;
+  rationale?: string | null;
+  actor_type?: ManuscriptActorType | null;
+  actor_id?: string | null;
 }

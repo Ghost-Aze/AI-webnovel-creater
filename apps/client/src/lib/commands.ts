@@ -36,8 +36,11 @@ import type {
 import type {
   Chapter,
   ChapterListFilter,
+  CreateManuscriptProposalInput,
   CreateChapterInput,
   Manuscript,
+  ManuscriptProposal,
+  ManuscriptProposalStatus,
   ManuscriptRevision,
   SaveManuscriptInput,
   UpdateChapterInput,
@@ -171,6 +174,46 @@ export function restoreManuscript(
   });
 }
 
+export function createManuscriptProposal(
+  projectId: string,
+  input: CreateManuscriptProposalInput,
+): Promise<ManuscriptProposal> {
+  return call<ManuscriptProposal>("manuscript_proposal_create", {
+    project_id: projectId,
+    input,
+  });
+}
+
+export function listManuscriptProposals(
+  chapterId: string,
+  status?: ManuscriptProposalStatus,
+): Promise<ManuscriptProposal[]> {
+  return call<ManuscriptProposal[]>("manuscript_proposal_list", {
+    chapter_id: chapterId,
+    status: status ?? null,
+  });
+}
+
+export function getManuscriptProposal(id: string): Promise<ManuscriptProposal> {
+  return call<ManuscriptProposal>("manuscript_proposal_get", { id });
+}
+
+export function promoteManuscriptProposal(
+  id: string,
+  expectedRevision: number,
+): Promise<Manuscript> {
+  return call<Manuscript>("manuscript_proposal_promote", {
+    id,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function rejectManuscriptProposal(
+  id: string,
+): Promise<ManuscriptProposal> {
+  return call<ManuscriptProposal>("manuscript_proposal_reject", { id });
+}
+
 export function createConversation(
   input: CreateConversationInput,
 ): Promise<Conversation> {
@@ -208,6 +251,16 @@ export function appendConversationMessage(
   return call<ConversationMessage>("conversation_message_append", {
     conversation_id: conversationId,
     input,
+  });
+}
+
+export function chapterChatSend(
+  chapterId: string,
+  request: DeveloperChatSendRequest,
+): Promise<DeveloperChatSendResult> {
+  return call<DeveloperChatSendResult>("chapter_chat_send", {
+    chapter_id: chapterId,
+    request,
   });
 }
 

@@ -26,11 +26,13 @@ impl ConversationRepository {
     pub fn create(&self, conversation: &Conversation) -> AppResult<Conversation> {
         let connection = self.connection.lock()?;
         connection.execute(
-            "INSERT INTO conversations (id, project_id, kind, title, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO conversations
+             (id, project_id, chapter_id, kind, title, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             rusqlite::params![
                 conversation.id,
                 conversation.project_id,
+                conversation.chapter_id,
                 conversation.kind.as_str(),
                 conversation.title,
                 conversation.created_at,
@@ -44,7 +46,7 @@ impl ConversationRepository {
         let connection = self.connection.lock()?;
         connection
             .query_row(
-                "SELECT id, project_id, kind, title, created_at, updated_at
+                "SELECT id, project_id, chapter_id, kind, title, created_at, updated_at
                  FROM conversations WHERE id = ?1",
                 [id],
                 map_conversation,
@@ -61,13 +63,13 @@ impl ConversationRepository {
         let connection = self.connection.lock()?;
         let mut statement = if filter.kind.is_some() {
             connection.prepare(
-                "SELECT id, project_id, kind, title, created_at, updated_at
+                "SELECT id, project_id, chapter_id, kind, title, created_at, updated_at
                  FROM conversations WHERE project_id = ?1 AND kind = ?2
                  ORDER BY updated_at DESC",
             )?
         } else {
             connection.prepare(
-                "SELECT id, project_id, kind, title, created_at, updated_at
+                "SELECT id, project_id, chapter_id, kind, title, created_at, updated_at
                  FROM conversations WHERE project_id = ?1
                  ORDER BY updated_at DESC",
             )?
@@ -188,15 +190,16 @@ impl ConversationRepository {
 }
 
 fn map_conversation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Conversation> {
-    let kind: String = row.get(2)?;
+    let kind: String = row.get(3)?;
     let kind = ConversationKind::try_from(kind.as_str()).map_err(|_| enum_error(&kind))?;
     Ok(Conversation {
         id: row.get(0)?,
         project_id: row.get(1)?,
+        chapter_id: row.get(2)?,
         kind,
-        title: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
+        title: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
     })
 }
 

@@ -6,7 +6,10 @@ use crate::{
         ServiceContextSource,
     },
     conversations::{
-        chat::{DeveloperChatSendRequest, DeveloperChatSendResult, DeveloperChatService},
+        chat::{
+            ChapterChatService, DeveloperChatSendRequest, DeveloperChatSendResult,
+            DeveloperChatService,
+        },
         service::ConversationService,
     },
     domain::character::{
@@ -21,6 +24,7 @@ use crate::{
         Chapter, ChapterListFilter, CreateChapterInput, Manuscript, ManuscriptRevision,
         SaveManuscriptInput, UpdateChapterInput,
     },
+    domain::manuscript_proposal::{CreateManuscriptProposalInput, ManuscriptProposal},
     domain::project::{CreateProjectInput, Project, ProjectListFilter, UpdateProjectInput},
     domain::revision::{
         CanonStatus, CreateProposalInput, MemoryEntityType, MemoryProposal, MemoryRevision,
@@ -196,6 +200,53 @@ pub fn restore_manuscript(
         "manuscript_restore",
         service.restore_manuscript(&chapter_id, revision, expected_revision),
     )
+}
+
+pub fn create_manuscript_proposal(
+    service: &crate::manuscript_proposals::service::ManuscriptProposalService,
+    project_id: String,
+    input: CreateManuscriptProposalInput,
+) -> AppResult<ManuscriptProposal> {
+    report(
+        "manuscript_proposal_create",
+        service.create(project_id, input),
+    )
+}
+
+pub fn list_manuscript_proposals(
+    service: &crate::manuscript_proposals::service::ManuscriptProposalService,
+    chapter_id: String,
+    status: Option<ProposalStatus>,
+) -> AppResult<Vec<ManuscriptProposal>> {
+    report(
+        "manuscript_proposal_list",
+        service.list(&chapter_id, status),
+    )
+}
+
+pub fn get_manuscript_proposal(
+    service: &crate::manuscript_proposals::service::ManuscriptProposalService,
+    id: String,
+) -> AppResult<ManuscriptProposal> {
+    report("manuscript_proposal_get", service.get(&id))
+}
+
+pub fn promote_manuscript_proposal(
+    service: &crate::manuscript_proposals::service::ManuscriptProposalService,
+    id: String,
+    expected_revision: u64,
+) -> AppResult<Manuscript> {
+    report(
+        "manuscript_proposal_promote",
+        service.promote(&id, expected_revision),
+    )
+}
+
+pub fn reject_manuscript_proposal(
+    service: &crate::manuscript_proposals::service::ManuscriptProposalService,
+    id: String,
+) -> AppResult<ManuscriptProposal> {
+    report("manuscript_proposal_reject", service.reject(&id))
 }
 
 pub fn create_character(
@@ -408,6 +459,30 @@ pub async fn developer_chat_send(
     )
 }
 
+pub async fn chapter_chat_send(
+    conversations: &ConversationService,
+    manuscripts: &crate::manuscripts::service::ManuscriptService,
+    registry: &ProviderRegistry,
+    compiler: &ContextCompiler,
+    source: &ServiceContextSource,
+    chapter_id: String,
+    request: DeveloperChatSendRequest,
+) -> AppResult<DeveloperChatSendResult> {
+    report(
+        "chapter_chat_send",
+        ChapterChatService::send(
+            conversations,
+            manuscripts,
+            registry,
+            compiler,
+            source,
+            &chapter_id,
+            request,
+        )
+        .await,
+    )
+}
+
 pub fn memory_tool_propose(
     service: &MemoryToolService,
     request: MemoryToolRequest,
@@ -572,6 +647,24 @@ mod tauri_commands {
     }
 
     #[tauri::command(rename_all = "snake_case")]
+    pub async fn chapter_chat_send(
+        state: State<'_, AppState>,
+        chapter_id: String,
+        request: DeveloperChatSendRequest,
+    ) -> AppResult<DeveloperChatSendResult> {
+        super::chapter_chat_send(
+            &state.conversation_service,
+            &state.manuscript_service,
+            &state.provider_registry,
+            &state.context_compiler,
+            &state.context_source,
+            chapter_id,
+            request,
+        )
+        .await
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
     pub fn memory_tool_propose(
         state: State<'_, AppState>,
         request: MemoryToolRequest,
@@ -656,6 +749,49 @@ mod tauri_commands {
             revision,
             expected_revision,
         )
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_proposal_create(
+        state: State<'_, AppState>,
+        project_id: String,
+        input: CreateManuscriptProposalInput,
+    ) -> AppResult<ManuscriptProposal> {
+        create_manuscript_proposal(&state.manuscript_proposal_service, project_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_proposal_list(
+        state: State<'_, AppState>,
+        chapter_id: String,
+        status: Option<ProposalStatus>,
+    ) -> AppResult<Vec<ManuscriptProposal>> {
+        list_manuscript_proposals(&state.manuscript_proposal_service, chapter_id, status)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_proposal_get(
+        state: State<'_, AppState>,
+        id: String,
+    ) -> AppResult<ManuscriptProposal> {
+        get_manuscript_proposal(&state.manuscript_proposal_service, id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_proposal_promote(
+        state: State<'_, AppState>,
+        id: String,
+        expected_revision: u64,
+    ) -> AppResult<Manuscript> {
+        promote_manuscript_proposal(&state.manuscript_proposal_service, id, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_proposal_reject(
+        state: State<'_, AppState>,
+        id: String,
+    ) -> AppResult<ManuscriptProposal> {
+        reject_manuscript_proposal(&state.manuscript_proposal_service, id)
     }
 
     #[tauri::command]

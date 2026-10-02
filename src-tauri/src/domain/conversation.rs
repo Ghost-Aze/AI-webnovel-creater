@@ -74,6 +74,7 @@ impl TryFrom<&str> for MessageRole {
 pub struct Conversation {
     pub id: String,
     pub project_id: String,
+    pub chapter_id: Option<String>,
     pub kind: ConversationKind,
     pub title: String,
     pub created_at: String,
@@ -94,6 +95,8 @@ pub struct ConversationMessage {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CreateConversationInput {
     pub project_id: String,
+    #[serde(default)]
+    pub chapter_id: Option<String>,
     #[serde(default)]
     pub kind: ConversationKind,
     pub title: String,
@@ -124,6 +127,7 @@ pub fn build_conversation(input: CreateConversationInput) -> crate::error::AppRe
     Ok(Conversation {
         id: new_id(),
         project_id: input.project_id,
+        chapter_id: input.chapter_id,
         kind: input.kind,
         title: title.into(),
         created_at: timestamp.clone(),
@@ -159,6 +163,7 @@ mod tests {
     fn builders_reject_blank_values_and_trim_valid_content() {
         assert!(build_conversation(CreateConversationInput {
             project_id: "project".into(),
+            chapter_id: None,
             kind: ConversationKind::DeveloperChat,
             title: "  ".into(),
         })
