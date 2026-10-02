@@ -11,6 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 import {
   createCharacter,
   createConversation,
+  createChapter,
   createProject,
   appendConversationMessage,
   compileContext,
@@ -19,15 +20,20 @@ import {
   getCredentialStoreStatus,
   getCharacterState,
   getConversation,
+  getManuscript,
   getProject,
   listConversationMessages,
   listConversations,
+  listChapters,
+  listManuscriptRevisions,
   listModels,
   listMemoryHistory,
   listProviders,
   removeProvider,
   proposeMemoryTool,
   routeModel,
+  restoreManuscript,
+  saveManuscript,
   runOrchestrator,
   sendDeveloperChat,
   restoreMemory,
@@ -212,6 +218,58 @@ describe("typed project commands", () => {
     await proposeMemoryTool(memoryRequest);
     expect(invokeMock).toHaveBeenCalledWith("memory_tool_propose", {
       request: memoryRequest,
+    });
+  });
+
+  it("uses typed chapter and manuscript command payloads", async () => {
+    const chapterInput = { number: 1, title: "Opening", synopsis: "Arrival" };
+    invokeMock.mockResolvedValueOnce({ id: "chapter-id" });
+    await createChapter("project-id", chapterInput);
+    expect(invokeMock).toHaveBeenCalledWith("chapter_create", {
+      project_id: "project-id",
+      input: chapterInput,
+    });
+
+    invokeMock.mockResolvedValueOnce([]);
+    await listChapters("project-id");
+    expect(invokeMock).toHaveBeenCalledWith("chapter_list", {
+      project_id: "project-id",
+      filter: { include_archived: false },
+    });
+
+    invokeMock.mockResolvedValueOnce({ id: "manuscript-id", revision: 2 });
+    await saveManuscript("chapter-id", {
+      content: "The gate opened.",
+      label: "Draft 2",
+      expected_revision: 1,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_save", {
+      chapter_id: "chapter-id",
+      input: {
+        content: "The gate opened.",
+        label: "Draft 2",
+        expected_revision: 1,
+      },
+    });
+
+    invokeMock.mockResolvedValueOnce({ id: "manuscript-id" });
+    await getManuscript("chapter-id");
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_get", {
+      chapter_id: "chapter-id",
+    });
+
+    invokeMock.mockResolvedValueOnce([]);
+    await listManuscriptRevisions("chapter-id");
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_revision_list", {
+      chapter_id: "chapter-id",
+    });
+
+    invokeMock.mockResolvedValueOnce({ revision: 3 });
+    await restoreManuscript("chapter-id", 1, 2);
+    expect(invokeMock).toHaveBeenCalledWith("manuscript_restore", {
+      chapter_id: "chapter-id",
+      revision: 1,
+      expected_revision: 2,
     });
   });
 

@@ -3,7 +3,9 @@ export type CommandErrorCode =
   | "not_found"
   | "archived_project"
   | "archived_character"
+  | "archived_chapter"
   | "duplicate_name"
+  | "duplicate_chapter_number"
   | "invalid_status"
   | "conflict"
   | "locked_canon"
@@ -32,7 +34,10 @@ const messages: Record<Exclude<CommandErrorCode, "validation">, string> = {
   not_found: "The project could not be found.",
   archived_project: "Archived projects cannot be edited.",
   archived_character: "Archived characters cannot be edited.",
+  archived_chapter: "Archived chapters cannot be edited.",
   duplicate_name: "A character with this name already exists in the project.",
+  duplicate_chapter_number:
+    "A chapter with this number already exists in the project.",
   invalid_status: "The project has an invalid status.",
   conflict: "This record changed. Reload and try again.",
   locked_canon: "Locked canon cannot be changed.",

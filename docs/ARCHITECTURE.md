@@ -205,10 +205,29 @@ and cannot update Character or CharacterState directly; promotion remains a
 user-controlled revision operation. Chat UI, streaming and automatic memory
 extraction remain later work.
 
+## Phase 11 manuscript workspace
+
+`Chapter` metadata is project-scoped and separate from `Conversation`. Chapter
+numbers are unique within a project, archived chapters remain readable, and
+archived projects reject new or mutating chapter work. Each chapter receives one
+`Manuscript` document; the current body is not stored in chat messages.
+
+`manuscript_revisions` is an append-only snapshot history. A save includes the
+revision the editor last loaded and is committed only when it still matches the
+current document revision. A stale save returns `conflict`, while restore reads
+an old snapshot and creates a new revision, preserving history. The current
+Phase 11 editor intentionally uses a plain textarea; rich text, autosave and
+collaborative conflict merging remain later phases.
+
+The `chapter_*` and `manuscript_*` Tauri commands are exposed through typed
+TypeScript wrappers. `ChapterPanel` lists and creates chapter records from the
+project workspace; `ChapterEditorPage` edits metadata, saves prose and offers
+explicit snapshot restore controls without invoking an AI provider.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character`, `CharacterState`, `Conversation` and `ConversationMessage`, with generic revision/proposal infrastructure for canonical memory. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes. Phase 10 supplies durable Developer Chat and proposal-backed memory tools; manuscript revisions, semantic search, relationships and sync remain later work. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character`, `CharacterState`, `Conversation`, `ConversationMessage`, `Chapter`, `Manuscript` and `ManuscriptRevision`, with generic revision/proposal infrastructure for canonical memory. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes. Phase 10 supplies durable Developer Chat and proposal-backed memory tools. Phase 11 supplies revision-safe manuscript documents and a plain-text chapter editor; semantic search, relationships, sync, rich-text editing and export remain later work. New memory entities must remain structured and provider-independent.

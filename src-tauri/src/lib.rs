@@ -5,6 +5,7 @@ pub mod conversations;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod manuscripts;
 pub mod memory_tools;
 pub mod orchestration;
 pub mod projects;
@@ -18,6 +19,7 @@ pub struct AppState {
     pub context_compiler: context::ContextCompiler,
     pub context_source: context::ServiceContextSource,
     pub memory_tool_service: memory_tools::MemoryToolService,
+    pub manuscript_service: manuscripts::service::ManuscriptService,
     pub project_service: projects::service::ProjectService,
     pub provider_registry: provider::ProviderRegistry,
     pub provider_runtime: provider::ProviderRuntime,
@@ -63,6 +65,10 @@ pub fn run() {
             );
             let memory_tool_service =
                 memory_tools::MemoryToolService::new(proposal_service.clone());
+            let manuscript_service = manuscripts::service::ManuscriptService::new(
+                manuscripts::repository::ManuscriptRepository::new(database.clone()),
+                projects::repository::ProjectRepository::new(database.clone()),
+            );
             let context_source =
                 context::ServiceContextSource::new(service.clone(), character_service.clone());
             let provider_runtime =
@@ -74,6 +80,7 @@ pub fn run() {
                 context_compiler: context::ContextCompiler::default(),
                 context_source,
                 memory_tool_service,
+                manuscript_service,
                 project_service: service,
                 provider_registry,
                 provider_runtime,
@@ -95,6 +102,15 @@ pub fn run() {
             commands::conversation_message_append,
             commands::developer_chat_send,
             commands::memory_tool_propose,
+            commands::chapter_create,
+            commands::chapter_list,
+            commands::chapter_get,
+            commands::chapter_update,
+            commands::chapter_archive,
+            commands::manuscript_get,
+            commands::manuscript_save,
+            commands::manuscript_revision_list,
+            commands::manuscript_restore,
             commands::character_create,
             commands::character_list,
             commands::character_get,

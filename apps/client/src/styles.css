@@ -678,11 +678,230 @@ p {
 
 .workspace-primary,
 .workspace-placeholder,
-.character-panel {
+.character-panel,
+.chapter-panel {
   padding: 23px;
   border: 1px solid var(--line);
   border-radius: 11px;
   background: rgba(18, 23, 34, 0.62);
+}
+
+.chapter-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.chapter-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.phase-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 20px;
+  padding: 0 6px;
+  border: 1px solid rgba(169, 151, 255, 0.22);
+  border-radius: 5px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.chapter-list {
+  display: grid;
+  gap: 6px;
+}
+
+.chapter-list-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  background: rgba(9, 13, 21, 0.35);
+  font-size: 11px;
+}
+
+.chapter-list-item:hover {
+  border-color: rgba(169, 151, 255, 0.4);
+  background: rgba(169, 151, 255, 0.08);
+}
+
+.chapter-list-item strong,
+.chapter-list-item small {
+  display: block;
+}
+
+.chapter-list-item strong {
+  overflow: hidden;
+  color: #e9ebf4;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-list-item small {
+  margin-top: 3px;
+  color: #667187;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.chapter-number {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.chapter-empty {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chapter-create-form {
+  margin-top: 18px;
+  padding-top: 17px;
+  border-top: 1px solid var(--line);
+}
+
+.chapter-create-fields {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.chapter-create-fields .field-label {
+  margin-bottom: 10px;
+}
+
+.chapter-create-fields input {
+  min-width: 0;
+}
+
+.editor-page {
+  max-width: 1250px;
+  padding-top: 35px;
+}
+
+.editor-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 29px;
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-header h1 {
+  margin: 0 0 12px;
+  color: #f4f5fa;
+  font-size: clamp(30px, 3vw, 43px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 0.36fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.editor-primary {
+  min-width: 0;
+  padding: 23px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(18, 23, 34, 0.62);
+}
+
+.editor-side-stack {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.manuscript-editor {
+  min-height: 580px;
+  resize: vertical;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px !important;
+  line-height: 1.75 !important;
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 15px;
+}
+
+.editor-revision {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.editor-metadata-form .section-heading,
+.editor-revisions .section-heading {
+  margin-bottom: 20px;
+}
+
+.editor-metadata-form select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 11px;
+  color: #eef0f7;
+  background: #0f141f;
+  font-size: 12px;
+}
+
+.editor-revision-list {
+  display: grid;
+  gap: 7px;
+}
+
+.editor-revision-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-revision-item:last-child {
+  border-bottom: 0;
+}
+
+.editor-revision-item strong,
+.editor-revision-item small {
+  display: block;
+}
+
+.editor-revision-item strong {
+  color: #e9ebf4;
+  font-size: 10px;
+}
+
+.editor-revision-item small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
 }
 
 .workspace-side-stack {

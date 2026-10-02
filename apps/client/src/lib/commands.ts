@@ -34,6 +34,15 @@ import type {
   MemoryToolRequest,
 } from "../types/conversation";
 import type {
+  Chapter,
+  ChapterListFilter,
+  CreateChapterInput,
+  Manuscript,
+  ManuscriptRevision,
+  SaveManuscriptInput,
+  UpdateChapterInput,
+} from "../types/manuscript";
+import type {
   OrchestrationRequest,
   OrchestrationResult,
 } from "../types/orchestration";
@@ -83,6 +92,83 @@ export function updateProject(
 
 export function archiveProject(id: string): Promise<Project> {
   return call<Project>("project_archive", { id });
+}
+
+export function createChapter(
+  projectId: string,
+  input: CreateChapterInput,
+): Promise<Chapter> {
+  return call<Chapter>("chapter_create", { project_id: projectId, input });
+}
+
+export function listChapters(
+  projectId: string,
+  filter: ChapterListFilter = { include_archived: false },
+): Promise<Chapter[]> {
+  return call<Chapter[]>("chapter_list", {
+    project_id: projectId,
+    filter,
+  });
+}
+
+export function getChapter(id: string): Promise<Chapter> {
+  return call<Chapter>("chapter_get", { id });
+}
+
+export function updateChapter(
+  id: string,
+  input: UpdateChapterInput,
+  expectedRevision: number,
+): Promise<Chapter> {
+  return call<Chapter>("chapter_update", {
+    id,
+    input,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function archiveChapter(
+  id: string,
+  expectedRevision: number,
+): Promise<Chapter> {
+  return call<Chapter>("chapter_archive", {
+    id,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function getManuscript(chapterId: string): Promise<Manuscript> {
+  return call<Manuscript>("manuscript_get", { chapter_id: chapterId });
+}
+
+export function saveManuscript(
+  chapterId: string,
+  input: SaveManuscriptInput,
+): Promise<Manuscript> {
+  return call<Manuscript>("manuscript_save", {
+    chapter_id: chapterId,
+    input,
+  });
+}
+
+export function listManuscriptRevisions(
+  chapterId: string,
+): Promise<ManuscriptRevision[]> {
+  return call<ManuscriptRevision[]>("manuscript_revision_list", {
+    chapter_id: chapterId,
+  });
+}
+
+export function restoreManuscript(
+  chapterId: string,
+  revision: number,
+  expectedRevision: number,
+): Promise<Manuscript> {
+  return call<Manuscript>("manuscript_restore", {
+    chapter_id: chapterId,
+    revision,
+    expected_revision: expectedRevision,
+  });
 }
 
 export function createConversation(

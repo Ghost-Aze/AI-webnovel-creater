@@ -1,3 +1,4 @@
+use crate::manuscripts::service::ManuscriptService;
 use crate::{
     characters::service::CharacterService,
     context::{
@@ -15,6 +16,10 @@ use crate::{
     domain::conversation::{
         AppendMessageInput, Conversation, ConversationListFilter, ConversationMessage,
         CreateConversationInput,
+    },
+    domain::manuscript::{
+        Chapter, ChapterListFilter, CreateChapterInput, Manuscript, ManuscriptRevision,
+        SaveManuscriptInput, UpdateChapterInput,
     },
     domain::project::{CreateProjectInput, Project, ProjectListFilter, UpdateProjectInput},
     domain::revision::{
@@ -110,6 +115,86 @@ pub fn append_conversation_message(
     report(
         "conversation_message_append",
         service.append_message(&conversation_id, input),
+    )
+}
+
+pub fn create_chapter(
+    service: &ManuscriptService,
+    project_id: String,
+    input: CreateChapterInput,
+) -> AppResult<Chapter> {
+    report("chapter_create", service.create_chapter(project_id, input))
+}
+
+pub fn list_chapters(
+    service: &ManuscriptService,
+    project_id: String,
+    filter: ChapterListFilter,
+) -> AppResult<Vec<Chapter>> {
+    report("chapter_list", service.list_chapters(&project_id, filter))
+}
+
+pub fn get_chapter(service: &ManuscriptService, id: String) -> AppResult<Chapter> {
+    report("chapter_get", service.get_chapter(&id))
+}
+
+pub fn update_chapter(
+    service: &ManuscriptService,
+    id: String,
+    input: UpdateChapterInput,
+    expected_revision: u64,
+) -> AppResult<Chapter> {
+    report(
+        "chapter_update",
+        service.update_chapter(&id, input, expected_revision),
+    )
+}
+
+pub fn archive_chapter(
+    service: &ManuscriptService,
+    id: String,
+    expected_revision: u64,
+) -> AppResult<Chapter> {
+    report(
+        "chapter_archive",
+        service.archive_chapter(&id, expected_revision),
+    )
+}
+
+pub fn get_manuscript(service: &ManuscriptService, chapter_id: String) -> AppResult<Manuscript> {
+    report("manuscript_get", service.get_manuscript(&chapter_id))
+}
+
+pub fn save_manuscript(
+    service: &ManuscriptService,
+    chapter_id: String,
+    input: SaveManuscriptInput,
+) -> AppResult<Manuscript> {
+    report(
+        "manuscript_save",
+        service.save_manuscript(&chapter_id, input),
+    )
+}
+
+pub fn list_manuscript_revisions(
+    service: &ManuscriptService,
+    chapter_id: String,
+) -> AppResult<Vec<ManuscriptRevision>> {
+    report(
+        "manuscript_revision_list",
+        service.list_revisions(&chapter_id),
+    )
+}
+
+pub fn restore_manuscript(
+    service: &ManuscriptService,
+    chapter_id: String,
+    revision: u64,
+    expected_revision: u64,
+) -> AppResult<Manuscript> {
+    report(
+        "manuscript_restore",
+        service.restore_manuscript(&chapter_id, revision, expected_revision),
     )
 }
 
@@ -492,6 +577,85 @@ mod tauri_commands {
         request: MemoryToolRequest,
     ) -> AppResult<crate::domain::revision::MemoryProposal> {
         super::memory_tool_propose(&state.memory_tool_service, request)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chapter_create(
+        state: State<'_, AppState>,
+        project_id: String,
+        input: CreateChapterInput,
+    ) -> AppResult<Chapter> {
+        create_chapter(&state.manuscript_service, project_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chapter_list(
+        state: State<'_, AppState>,
+        project_id: String,
+        filter: ChapterListFilter,
+    ) -> AppResult<Vec<Chapter>> {
+        list_chapters(&state.manuscript_service, project_id, filter)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chapter_get(state: State<'_, AppState>, id: String) -> AppResult<Chapter> {
+        get_chapter(&state.manuscript_service, id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chapter_update(
+        state: State<'_, AppState>,
+        id: String,
+        input: UpdateChapterInput,
+        expected_revision: u64,
+    ) -> AppResult<Chapter> {
+        update_chapter(&state.manuscript_service, id, input, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chapter_archive(
+        state: State<'_, AppState>,
+        id: String,
+        expected_revision: u64,
+    ) -> AppResult<Chapter> {
+        archive_chapter(&state.manuscript_service, id, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_get(state: State<'_, AppState>, chapter_id: String) -> AppResult<Manuscript> {
+        get_manuscript(&state.manuscript_service, chapter_id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_save(
+        state: State<'_, AppState>,
+        chapter_id: String,
+        input: SaveManuscriptInput,
+    ) -> AppResult<Manuscript> {
+        save_manuscript(&state.manuscript_service, chapter_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_revision_list(
+        state: State<'_, AppState>,
+        chapter_id: String,
+    ) -> AppResult<Vec<ManuscriptRevision>> {
+        list_manuscript_revisions(&state.manuscript_service, chapter_id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn manuscript_restore(
+        state: State<'_, AppState>,
+        chapter_id: String,
+        revision: u64,
+        expected_revision: u64,
+    ) -> AppResult<Manuscript> {
+        restore_manuscript(
+            &state.manuscript_service,
+            chapter_id,
+            revision,
+            expected_revision,
+        )
     }
 
     #[tauri::command]

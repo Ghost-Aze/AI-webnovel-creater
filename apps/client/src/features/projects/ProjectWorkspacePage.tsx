@@ -5,6 +5,7 @@ import { normalizeCommandError } from "../../lib/command-error";
 import { archiveProject, getProject, updateProject } from "../../lib/commands";
 import type { Project } from "../../types/project";
 import { CharacterPanel } from "./CharacterPanel";
+import { ChapterPanel } from "../manuscripts/ChapterPanel";
 
 export function ProjectWorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -165,6 +166,7 @@ export function ProjectWorkspacePage() {
           </form>
         </div>
         <div className="workspace-side-stack">
+          <ChapterPanel projectId={project.id} projectArchived={archived} />
           <CharacterPanel projectId={project.id} projectArchived={archived} />
           <div className="workspace-placeholder">
             <p className="eyebrow">Next steps</p>

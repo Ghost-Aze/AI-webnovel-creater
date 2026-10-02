@@ -18,9 +18,15 @@ pub enum AppError {
     #[serde(rename = "archived_character")]
     #[error("The character is archived and cannot be updated.")]
     ArchivedCharacter,
+    #[serde(rename = "archived_chapter")]
+    #[error("The chapter is archived and cannot be updated.")]
+    ArchivedChapter,
     #[serde(rename = "duplicate_name")]
     #[error("A character with this name already exists in the project.")]
     DuplicateName,
+    #[serde(rename = "duplicate_chapter_number")]
+    #[error("A chapter with this number already exists in the project.")]
+    DuplicateChapterNumber,
     #[serde(rename = "invalid_status")]
     #[error("Stored project status is invalid.")]
     InvalidStatus,
@@ -71,7 +77,9 @@ impl AppError {
             Self::NotFound => "not_found",
             Self::ArchivedProject => "archived_project",
             Self::ArchivedCharacter => "archived_character",
+            Self::ArchivedChapter => "archived_chapter",
             Self::DuplicateName => "duplicate_name",
+            Self::DuplicateChapterNumber => "duplicate_chapter_number",
             Self::InvalidStatus => "invalid_status",
             Self::Conflict => "conflict",
             Self::LockedCanon => "locked_canon",
