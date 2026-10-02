@@ -33,7 +33,7 @@ fn migration_is_idempotent_and_preserves_data() {
             .unwrap()
             .query_row::<i64, _, _>("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0),)
             .unwrap(),
-        7
+        8
     );
 
     let connection = connection.lock().unwrap();

@@ -259,12 +259,21 @@ export function ChapterEditorPage() {
         <p className="eyebrow">Chapter unavailable</p>
         <h1>We could not open this chapter.</h1>
         <p>{error}</p>
-        <Link
-          className="button button-secondary"
-          to={`/projects/${projectId ?? ""}`}
-        >
-          Back to project
-        </Link>
+        <div className="form-actions">
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={() => void loadEditor()}
+          >
+            Try again
+          </button>
+          <Link
+            className="button button-secondary"
+            to={`/projects/${projectId ?? ""}`}
+          >
+            Back to project
+          </Link>
+        </div>
       </section>
     );
   }

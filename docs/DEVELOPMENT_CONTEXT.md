@@ -21,8 +21,9 @@ documents are under `docs/superpowers/`.
 - Phase 12 base commit: `12fa759`
 - Phase 11 base commit: `76552e6`
 - `main` has not been merged into by implementation work.
-- Phase 0 through Phase 13 are implemented slices; Phase 14 has not been
-  approved.
+- Phase 0 through Phase 14 are implemented slices. Phase 14 adds the local
+  user profile and global writing-preferences foundation; it does not add
+  authentication, sync or a settings UI.
 
 ## Phase 13 decisions
 
@@ -40,15 +41,32 @@ documents are under `docs/superpowers/`.
 - The React editor exposes Chapter Chat plus review controls. Proposal content
   is currently a complete plain-text body; line-level diff/merge is deferred.
 
+## Phase 14 decisions
+
+- `user_profile` and `user_preferences` are singleton local SQLite records with
+  the stable `local_user` key and deterministic migration defaults.
+- User profile and writing-preference updates normalize typed inputs and use
+  optimistic revisions inside one SQLite transaction. Stale writes return
+  `conflict` without partial changes.
+- `UserService` owns the local identity boundary. Tauri and TypeScript expose
+  typed profile/preferences commands while SQL, SQLite booleans and storage
+  errors remain inside Rust.
+- Authentication, cloud sync, multi-user access, project-level overrides,
+  provider settings and a visual settings screen remain deferred.
+
 ## Verification baseline
 
-The Phase 13 baseline is:
+The current Phase 14 baseline is:
 
-- Rust: 84 unit tests plus 23 integration tests pass.
+- Rust: 95 unit tests plus 25 integration tests pass.
 - Rust `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
   pass.
-- Frontend: 43 Vitest tests across 11 files pass.
-- Frontend typecheck, ESLint, Prettier and production build pass.
+- Frontend: 63 Vitest tests across 16 files pass.
+- Frontend typecheck, ESLint and production build pass. The repository-wide
+  Prettier check still reports existing formatting drift across the client and
+  is not part of the required source verification gate.
+- Windows native smoke test starts `webnovel-ai-studio` successfully and the
+  Vite endpoint returns HTTP 200.
 - Native `cargo check --features tauri-app` cannot complete in the cloud Linux
   environment because GTK/GObject/GIO/GDK development packages are absent.
   Windows native and Android builds must be verified on machines with their
@@ -79,4 +97,5 @@ Git; configure them locally through the provider settings boundary.
    approves a new phase.
 3. Run the required checks after source changes and report results.
 4. Preserve local changes; do not use destructive resets or merge into `main`.
-5. Before Phase 14, ask the user for approval and write a new design/plan.
+5. Before a later phase, ask the user for approval and write a new
+   design/plan. Keep Phase 14 local-only until a later scope is approved.

@@ -37,6 +37,7 @@ impl ConversationService {
             })?;
             self.projects
                 .chapter_belongs_to_project(chapter_id, &input.project_id)?;
+            self.projects.chapter_is_active(chapter_id)?;
         } else if input.chapter_id.is_some() {
             return Err(AppError::Validation {
                 message: "Only chapter chat conversations may reference a chapter.".into(),
@@ -207,5 +208,49 @@ mod tests {
             }),
             Err(AppError::NotFound)
         ));
+    }
+
+    #[test]
+    fn chapter_chat_cannot_be_created_for_an_archived_chapter() {
+        let connection = db::in_memory().unwrap();
+        let project_repository = ProjectRepository::new(connection.clone());
+        let projects = ProjectService::new(project_repository.clone());
+        let manuscripts = crate::manuscripts::service::ManuscriptService::new(
+            crate::manuscripts::repository::ManuscriptRepository::new(connection.clone()),
+            project_repository.clone(),
+        );
+        let conversations =
+            ConversationService::new(ConversationRepository::new(connection), project_repository);
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Archived chapter chat".into(),
+                description: None,
+            })
+            .unwrap();
+        let chapter = manuscripts
+            .create_chapter(
+                project.id.clone(),
+                crate::domain::manuscript::CreateChapterInput {
+                    number: 1,
+                    title: "Opening".into(),
+                    synopsis: None,
+                },
+            )
+            .unwrap();
+        manuscripts
+            .archive_chapter(&chapter.id, chapter.revision)
+            .unwrap();
+
+        assert_eq!(
+            conversations
+                .create(CreateConversationInput {
+                    project_id: project.id,
+                    chapter_id: Some(chapter.id),
+                    kind: ConversationKind::ChapterChat,
+                    title: "Archived chapter chat".into(),
+                })
+                .unwrap_err(),
+            AppError::ArchivedChapter
+        );
     }
 }

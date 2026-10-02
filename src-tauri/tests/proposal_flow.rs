@@ -203,3 +203,29 @@ fn locked_proposal_cannot_promote() {
         ProposalStatus::Draft
     );
 }
+
+#[test]
+fn archived_project_rejects_proposal_promotion() {
+    let services = services();
+    let character = character(&services);
+    let proposal = services
+        .proposals
+        .create(proposal_input(
+            character.project_id.clone(),
+            character.id.clone(),
+            update_payload("Archived project proposal"),
+            character.revision,
+        ))
+        .unwrap();
+    services.projects.archive(&character.project_id).unwrap();
+
+    assert_eq!(
+        services.proposals.promote(&proposal.id, character.revision),
+        Err(AppError::ArchivedProject)
+    );
+    assert_eq!(services.characters.get(&character.id).unwrap().name, "Mira");
+    assert_eq!(
+        services.proposals.get(&proposal.id).unwrap().status,
+        ProposalStatus::Draft
+    );
+}

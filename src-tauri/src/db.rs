@@ -41,6 +41,10 @@ const MIGRATIONS: &[Migration] = &[
         name: "0007_chapter_chat_proposals.sql",
         sql: include_str!("../../migrations/0007_chapter_chat_proposals.sql"),
     },
+    Migration {
+        name: "0008_create_user_profile_preferences.sql",
+        sql: include_str!("../../migrations/0008_create_user_profile_preferences.sql"),
+    },
 ];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;
@@ -90,3 +94,100 @@ pub fn run_migrations(connection: &Connection) -> AppResult<()> {
 }
 
 use rusqlite::OptionalExtension;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_profile_and_preferences_migration_is_idempotent_with_deterministic_defaults() {
+        let connection = in_memory().expect("in-memory database should initialize");
+        let guard = connection.lock().expect("connection lock should succeed");
+
+        run_migrations(&guard).expect("running migrations twice should succeed");
+
+        let profile: (String, String, i64) = guard
+            .query_row(
+                "SELECT id, display_name, revision FROM user_profile",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("default profile should exist");
+        assert_eq!(profile, ("local_user".to_string(), "Writer".to_string(), 1));
+        assert_eq!(
+            guard
+                .query_row::<String, _, _>(
+                    "SELECT preferred_language FROM user_profile WHERE id = 'local_user'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            "en"
+        );
+
+        let preferences: (String, String, i64, i64, i64, String, String, i64) = guard
+            .query_row(
+                "SELECT preferred_narrator, preferred_pov, chapter_length, scene_length,
+                        dialogue_density, prose_level, pacing, avoid_repetition
+                 FROM user_preferences WHERE id = 'local_user'",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                        row.get(7)?,
+                    ))
+                },
+            )
+            .expect("default preferences should exist");
+        assert_eq!(
+            preferences,
+            (
+                "third_person".to_string(),
+                "limited".to_string(),
+                2000,
+                600,
+                40,
+                "standard".to_string(),
+                "balanced".to_string(),
+                1,
+            )
+        );
+
+        assert_eq!(
+            guard
+                .query_row::<i64, _, _>(
+                    "SELECT COUNT(*) FROM user_profile WHERE id = 'local_user'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            guard
+                .query_row::<i64, _, _>(
+                    "SELECT COUNT(*) FROM user_preferences WHERE id = 'local_user'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            guard
+                .query_row::<i64, _, _>(
+                    "SELECT COUNT(*) FROM _migrations WHERE name = '0008_create_user_profile_preferences.sql'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+}

@@ -26,14 +26,17 @@ export function ManuscriptProposalPanel({
   const [proposals, setProposals] = useState<ManuscriptProposal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadProposals = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
+    setError(null);
     try {
       setProposals(await listManuscriptProposals(chapterId, "draft"));
     } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
+      setLoadError(normalizeCommandError(commandError).message);
     } finally {
       setIsLoading(false);
     }
@@ -89,37 +92,52 @@ export function ManuscriptProposalPanel({
         </div>
       </div>
       {isLoading && <p className="loading-state">Loading proposals…</p>}
-      {!isLoading && proposals.length === 0 && (
+      {!isLoading && loadError && (
+        <div className="error-state" role="alert">
+          <strong>Proposals could not be loaded.</strong>
+          <span>{loadError}</span>
+          <button
+            className="button button-ghost"
+            type="button"
+            onClick={() => void loadProposals()}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+      {!isLoading && !loadError && proposals.length === 0 && (
         <p className="empty-state">No pending proposals.</p>
       )}
-      <div className="manuscript-proposal-list">
-        {proposals.map((proposal) => (
-          <article className="manuscript-proposal" key={proposal.id}>
-            <p>{proposal.rationale || "Chapter Chat proposal"}</p>
-            <pre>{proposal.proposed_content}</pre>
-            <small>Based on revision {proposal.base_revision}</small>
-            <div className="editor-conflict-actions">
-              <button
-                className="button button-ghost button-small"
-                type="button"
-                onClick={() => void handleReject(proposal)}
-                disabled={disabled || busyId === proposal.id}
-              >
-                Reject
-              </button>
-              <button
-                className="button button-primary button-small"
-                type="button"
-                onClick={() => void handlePromote(proposal)}
-                disabled={disabled || busyId === proposal.id}
-              >
-                {busyId === proposal.id ? "Applying…" : "Apply revision"}
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {error && (
+      {!isLoading && !loadError && (
+        <div className="manuscript-proposal-list">
+          {proposals.map((proposal) => (
+            <article className="manuscript-proposal" key={proposal.id}>
+              <p>{proposal.rationale || "Chapter Chat proposal"}</p>
+              <pre>{proposal.proposed_content}</pre>
+              <small>Based on revision {proposal.base_revision}</small>
+              <div className="editor-conflict-actions">
+                <button
+                  className="button button-ghost button-small"
+                  type="button"
+                  onClick={() => void handleReject(proposal)}
+                  disabled={disabled || busyId === proposal.id}
+                >
+                  Reject
+                </button>
+                <button
+                  className="button button-primary button-small"
+                  type="button"
+                  onClick={() => void handlePromote(proposal)}
+                  disabled={disabled || busyId === proposal.id}
+                >
+                  {busyId === proposal.id ? "Applying…" : "Apply revision"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      {error && !loadError && (
         <p className="form-error" role="alert">
           {error}
         </p>

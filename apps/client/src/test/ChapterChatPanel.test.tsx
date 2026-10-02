@@ -96,4 +96,26 @@ describe("ChapterChatPanel", () => {
     );
     expect(await screen.findByText("Proposal saved")).toBeInTheDocument();
   });
+
+  it("can retry a failed chat load", async () => {
+    const user = userEvent.setup();
+    listConversationsMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce([conversation]);
+
+    render(
+      <ChapterChatPanel
+        projectId="project-1"
+        chapterId="chapter-1"
+        currentRevision={3}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("textbox", { name: "Chapter Chat message" }),
+    ).toBeInTheDocument();
+    expect(listConversationsMock).toHaveBeenCalledTimes(2);
+  });
 });

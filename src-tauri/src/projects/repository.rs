@@ -64,6 +64,24 @@ impl ProjectRepository {
         Ok(())
     }
 
+    pub fn chapter_is_active(&self, chapter_id: &str) -> AppResult<()> {
+        let connection = self.connection.lock()?;
+        let status: String = connection
+            .query_row(
+                "SELECT status FROM chapters WHERE id = ?1",
+                [chapter_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => AppError::NotFound,
+                other => other.into(),
+            })?;
+        if status == "archived" {
+            return Err(AppError::ArchivedChapter);
+        }
+        Ok(())
+    }
+
     pub fn list(&self, filter: ProjectListFilter) -> AppResult<Vec<Project>> {
         let connection = self.connection.lock()?;
         let mut statement = if filter.include_archived {

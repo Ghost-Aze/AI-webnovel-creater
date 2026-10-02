@@ -492,6 +492,20 @@ mod tests {
     }
 
     #[test]
+    fn orchestration_future_can_run_on_native_async_runtime() {
+        fn assert_send<T: Send>(_: T) {}
+
+        let (registry, _) = registry();
+        let compiler = ContextCompiler::default();
+        let source = source();
+        assert_send(NarrativeOrchestrator.run(
+            &registry,
+            &compiler,
+            &source,
+            request(QualityMode::Fast),
+        ));
+    }
+    #[test]
     fn quality_modes_create_expected_writing_plan_shapes() {
         assert_eq!(
             OrchestrationPlan::for_request(ModelTask::MainWriting, QualityMode::Fast)

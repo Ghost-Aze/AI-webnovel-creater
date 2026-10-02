@@ -24,6 +24,8 @@ import {
   getConversation,
   getManuscript,
   getProject,
+  getUserPreferences,
+  getUserProfile,
   listConversationMessages,
   listConversations,
   listChapters,
@@ -45,6 +47,8 @@ import {
   setMemoryCanonStatus,
   updateCharacter,
   updateCharacterState,
+  updateUserPreferences,
+  updateUserProfile,
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
@@ -59,6 +63,10 @@ import type {
   ProviderConfigureInput,
   RoutingRequest,
 } from "../types/provider";
+import type {
+  UpdateUserPreferencesInput,
+  UpdateUserProfileInput,
+} from "../types/user";
 
 describe("typed project commands", () => {
   it("returns the exact project shape from the command boundary", async () => {
@@ -77,6 +85,70 @@ describe("typed project commands", () => {
     );
     expect(invokeMock).toHaveBeenCalledWith("project_create", {
       input: { name: "A project" },
+    });
+  });
+
+  it("uses typed local user profile and preference payloads", async () => {
+    const profile = {
+      id: "local_user",
+      display_name: "Writer",
+      preferred_language: "en",
+      created_at: "2026-10-02T00:00:00Z",
+      updated_at: "2026-10-02T00:00:00Z",
+      revision: 1,
+    };
+    invokeMock.mockResolvedValueOnce(profile);
+    await expect(getUserProfile()).resolves.toEqual(profile);
+    expect(invokeMock).toHaveBeenCalledWith("user_profile_get", {});
+
+    const profileInput: UpdateUserProfileInput = {
+      display_name: "Mira",
+      preferred_language: "tr",
+    };
+    invokeMock.mockResolvedValueOnce({ ...profile, ...profileInput, revision: 2 });
+    await updateUserProfile(profileInput, 1);
+    expect(invokeMock).toHaveBeenCalledWith("user_profile_update", {
+      input: profileInput,
+      expected_revision: 1,
+    });
+
+    const preferences = {
+      id: "local_user",
+      preferred_narrator: "third_person",
+      preferred_pov: "limited",
+      chapter_length: 2000,
+      scene_length: 600,
+      dialogue_density: 40,
+      prose_level: "standard",
+      pacing: "balanced",
+      avoid_repetition: true,
+      created_at: "2026-10-02T00:00:00Z",
+      updated_at: "2026-10-02T00:00:00Z",
+      revision: 1,
+    };
+    invokeMock.mockResolvedValueOnce(preferences);
+    await expect(getUserPreferences()).resolves.toEqual(preferences);
+    expect(invokeMock).toHaveBeenCalledWith("user_preferences_get", {});
+
+    const preferencesInput: UpdateUserPreferencesInput = {
+      preferred_narrator: "first_person",
+      preferred_pov: "close",
+      chapter_length: 1800,
+      scene_length: 500,
+      dialogue_density: 60,
+      prose_level: "lyrical",
+      pacing: "brisk",
+      avoid_repetition: false,
+    };
+    invokeMock.mockResolvedValueOnce({
+      ...preferences,
+      ...preferencesInput,
+      revision: 2,
+    });
+    await updateUserPreferences(preferencesInput, 1);
+    expect(invokeMock).toHaveBeenCalledWith("user_preferences_update", {
+      input: preferencesInput,
+      expected_revision: 1,
     });
   });
 

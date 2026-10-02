@@ -80,9 +80,18 @@ export function ProjectWorkspacePage() {
         <p className="eyebrow">Project unavailable</p>
         <h1>We could not open this project.</h1>
         <p>{error}</p>
-        <Link className="button button-secondary" to="/projects">
-          Back to projects
-        </Link>
+        <div className="form-actions">
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={() => void loadProject()}
+          >
+            Try again
+          </button>
+          <Link className="button button-secondary" to="/projects">
+            Back to projects
+          </Link>
+        </div>
       </section>
     );
   }
@@ -102,15 +111,23 @@ export function ProjectWorkspacePage() {
             {archived ? "Archived" : "Active"}
           </span>
         </div>
-        {!archived && (
-          <button
-            className="button button-danger-ghost"
-            type="button"
-            onClick={() => void handleArchive()}
+        <div className="workspace-header-actions">
+          <Link
+            className="button button-secondary"
+            to={`/projects/${project.id}/chat`}
           >
-            Archive project
-          </button>
-        )}
+            Open Developer Chat
+          </Link>
+          {!archived && (
+            <button
+              className="button button-danger-ghost"
+              type="button"
+              onClick={() => void handleArchive()}
+            >
+              Archive project
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="workspace-grid">

@@ -69,4 +69,24 @@ describe("ManuscriptProposalPanel", () => {
       await screen.findByText("No pending proposals."),
     ).toBeInTheDocument();
   });
+
+  it("can retry a failed proposal load", async () => {
+    const user = userEvent.setup();
+    listProposalsMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce([proposal]);
+
+    render(
+      <ManuscriptProposalPanel
+        chapterId="chapter-1"
+        currentRevision={2}
+        onPromoted={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("A sharper opening.")).toBeInTheDocument();
+    expect(listProposalsMock).toHaveBeenCalledTimes(2);
+  });
 });

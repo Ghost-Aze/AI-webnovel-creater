@@ -2,11 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { normalizeCommandError } from "../../lib/command-error";
 import {
-  chapterChatSend,
   createConversation,
-  createManuscriptProposal,
   listConversationMessages,
   listConversations,
+  sendDeveloperChat,
 } from "../../lib/commands";
 import type {
   Conversation,
@@ -14,12 +13,9 @@ import type {
   DeveloperChatSendRequest,
 } from "../../types/conversation";
 
-interface ChapterChatPanelProps {
+interface DeveloperChatPanelProps {
   projectId: string;
-  chapterId: string;
-  currentRevision: number;
   disabled?: boolean;
-  onProposalCreated?: () => void;
 }
 
 const emptyCapabilities = {
@@ -31,13 +27,10 @@ const emptyCapabilities = {
   prompt_caching: false,
 };
 
-export function ChapterChatPanel({
+export function DeveloperChatPanel({
   projectId,
-  chapterId,
-  currentRevision,
   disabled = false,
-  onProposalCreated,
-}: ChapterChatPanelProps) {
+}: DeveloperChatPanelProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -45,7 +38,6 @@ export function ChapterChatPanel({
   const [isSending, setIsSending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [proposalId, setProposalId] = useState<string | null>(null);
 
   const loadChat = useCallback(async () => {
     setIsLoading(true);
@@ -53,19 +45,17 @@ export function ChapterChatPanel({
     setError(null);
     try {
       const existing = (
-        await listConversations(projectId, {
-          kind: "chapter_chat",
-        })
-      ).find((item) => item.chapter_id === chapterId);
+        await listConversations(projectId, { kind: "developer_chat" })
+      )[0];
       const active =
         existing ??
         (disabled
           ? null
           : await createConversation({
               project_id: projectId,
-              chapter_id: chapterId,
-              kind: "chapter_chat",
-              title: "Chapter Chat",
+              chapter_id: null,
+              kind: "developer_chat",
+              title: "Developer Chat",
             }));
       if (!active) {
         setConversation(null);
@@ -79,7 +69,7 @@ export function ChapterChatPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [chapterId, disabled, projectId]);
+  }, [disabled, projectId]);
 
   useEffect(() => {
     void loadChat();
@@ -99,7 +89,7 @@ export function ChapterChatPanel({
         required_capabilities: emptyCapabilities,
         minimum_context_window_tokens: null,
         system_instructions:
-          "You are the Chapter Chat assistant. Discuss and propose manuscript changes without changing canonical data automatically.",
+          "You are the Developer Chat assistant. Respect the project's canon and keep all canonical changes explicit and reviewable.",
         character_ids: [],
         include_character_states: false,
         context_budget: {
@@ -109,7 +99,7 @@ export function ChapterChatPanel({
         message,
         temperature: null,
       };
-      const result = await chapterChatSend(chapterId, request);
+      const result = await sendDeveloperChat(request);
       setMessages((current) => [
         ...current,
         result.user_message,
@@ -123,43 +113,25 @@ export function ChapterChatPanel({
     }
   }
 
-  async function handlePropose(content: string) {
-    if (disabled) return;
-    setError(null);
-    try {
-      const proposal = await createManuscriptProposal(projectId, {
-        chapter_id: chapterId,
-        base_revision: currentRevision,
-        proposed_content: content,
-        content_format: "plain_text",
-        rationale: "Proposed from Chapter Chat",
-        actor_type: "ai",
-        actor_id: "chapter-chat",
-      });
-      setProposalId(proposal.id);
-      onProposalCreated?.();
-    } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
-    }
-  }
-
   return (
     <section
-      className="workspace-primary chapter-chat-panel"
-      aria-labelledby="chapter-chat-heading"
+      className="workspace-primary developer-chat-panel"
+      aria-labelledby="developer-chat-heading"
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Chapter workspace</p>
-          <h2 id="chapter-chat-heading">Chapter Chat</h2>
+          <p className="eyebrow">Project workspace</p>
+          <h2 id="developer-chat-heading">Developer Chat</h2>
         </div>
-        {proposalId && <span className="saved-message">Proposal saved</span>}
+        <span className="chat-scope-label">Project scoped</span>
       </div>
       {isLoading ? (
-        <p className="loading-state">Loading chat…</p>
+        <p className="loading-state" role="status">
+          Loading chat…
+        </p>
       ) : loadError ? (
         <div className="error-state" role="alert">
-          <strong>Chapter Chat could not be loaded.</strong>
+          <strong>Developer Chat could not be loaded.</strong>
           <span>{loadError}</span>
           <button
             className="button button-ghost"
@@ -171,48 +143,46 @@ export function ChapterChatPanel({
         </div>
       ) : (
         <>
-          <div className="chapter-chat-messages" aria-live="polite">
+          <div className="developer-chat-messages" aria-live="polite">
             {messages.length === 0 && (
-              <p className="empty-state">Ask for a scene idea or revision.</p>
+              <p className="empty-state developer-chat-empty">
+                Ask about your world, characters or the next story decision.
+              </p>
             )}
             {messages.map((message) => (
               <article
-                className={`chapter-chat-message message-${message.role}`}
+                className={`developer-chat-message message-${message.role}`}
                 key={message.id}
               >
                 <small>{message.role}</small>
                 <p>{message.content}</p>
-                {message.role === "assistant" && message.content.trim() && (
-                  <button
-                    className="button button-ghost button-small"
-                    type="button"
-                    onClick={() => void handlePropose(message.content)}
-                    disabled={disabled}
-                  >
-                    Propose revision
-                  </button>
-                )}
               </article>
             ))}
           </div>
-          <div className="chapter-chat-composer">
-            <textarea
-              aria-label="Chapter Chat message"
-              rows={3}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              disabled={disabled || isSending}
-              placeholder="Ask about this chapter…"
-            />
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={disabled || isSending || !draft.trim()}
-            >
-              {isSending ? "Sending…" : "Send"}
-            </button>
-          </div>
+          {disabled ? (
+            <p className="chat-readonly-note">
+              Archived projects can be viewed but cannot receive new messages.
+            </p>
+          ) : (
+            <div className="developer-chat-composer">
+              <textarea
+                aria-label="Developer Chat message"
+                rows={4}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                disabled={isSending}
+                placeholder="Ask about this project…"
+              />
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={isSending || !draft.trim()}
+              >
+                {isSending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          )}
         </>
       )}
       {error && !loadError && (

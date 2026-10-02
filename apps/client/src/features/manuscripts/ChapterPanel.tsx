@@ -19,15 +19,23 @@ export function ChapterPanel({
   const [title, setTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadChapters = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
-      setChapters(await listChapters(projectId));
+      const loaded = await listChapters(projectId);
+      setChapters(loaded);
+      const nextNumber =
+        loaded.reduce(
+          (highest, chapter) => Math.max(highest, chapter.number),
+          0,
+        ) + 1;
+      setNumber((current) => (current === 1 ? nextNumber : current));
     } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
+      setLoadError(normalizeCommandError(commandError).message);
     } finally {
       setIsLoading(false);
     }
@@ -69,12 +77,25 @@ export function ChapterPanel({
         <span className="phase-chip">{chapters.length}</span>
       </div>
       {isLoading && <p className="loading-state">Loading chapters…</p>}
-      {!isLoading && chapters.length === 0 && (
+      {!isLoading && loadError && (
+        <div className="error-state" role="alert">
+          <strong>Chapters could not be loaded.</strong>
+          <span>{loadError}</span>
+          <button
+            className="button button-ghost"
+            type="button"
+            onClick={() => void loadChapters()}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+      {!isLoading && !loadError && chapters.length === 0 && (
         <p className="chapter-empty">
           No chapters yet. Give the story its first page.
         </p>
       )}
-      {!isLoading && chapters.length > 0 && (
+      {!isLoading && !loadError && chapters.length > 0 && (
         <div className="chapter-list" aria-label="Chapter list">
           {chapters.map((chapter) => (
             <Link
@@ -94,7 +115,7 @@ export function ChapterPanel({
           ))}
         </div>
       )}
-      {!projectArchived && (
+      {!projectArchived && !loadError && (
         <form className="chapter-create-form" onSubmit={handleCreate}>
           <div className="chapter-create-fields">
             <label className="field-label" htmlFor="new-chapter-number">
@@ -130,11 +151,6 @@ export function ChapterPanel({
             {isCreating ? "Creating…" : "New chapter"}
           </button>
         </form>
-      )}
-      {projectArchived && error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
       )}
     </section>
   );

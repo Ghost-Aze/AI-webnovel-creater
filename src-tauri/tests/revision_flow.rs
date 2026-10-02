@@ -241,3 +241,32 @@ fn restore_creates_new_revision_without_mutating_history() {
     assert_eq!(history.len(), 3);
     assert_eq!(history[1].new_value["name"], "Mira Vale");
 }
+
+#[test]
+fn archived_character_rejects_restore_and_canon_status_changes() {
+    let services = services();
+    let created = character(&services);
+    let archived = services
+        .characters
+        .archive_with_revision(&created.id, created.revision)
+        .unwrap();
+
+    assert_eq!(
+        services.revisions.restore(
+            MemoryEntityType::Character,
+            &created.id,
+            created.revision,
+            archived.revision,
+        ),
+        Err(AppError::ArchivedCharacter)
+    );
+    assert_eq!(
+        services.revisions.set_canon_status(
+            MemoryEntityType::Character,
+            &created.id,
+            CanonStatus::Canon,
+            archived.revision,
+        ),
+        Err(AppError::ArchivedCharacter)
+    );
+}

@@ -124,4 +124,38 @@ describe("CharacterPanel", () => {
       1,
     );
   });
+
+  it("can retry a failed character load", async () => {
+    const user = userEvent.setup();
+    listCharactersMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce([character]);
+
+    render(<CharacterPanel projectId="project-1" projectArchived={false} />);
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("heading", { name: "Mara Voss" }),
+    ).toBeInTheDocument();
+    expect(listCharactersMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("can retry a failed continuity state load", async () => {
+    const user = userEvent.setup();
+    getCharacterStateMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce(state);
+
+    render(<CharacterPanel projectId="project-1" projectArchived={false} />);
+
+    expect(
+      await screen.findByText("Character state could not be loaded."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByDisplayValue("North station"),
+    ).toBeInTheDocument();
+    expect(getCharacterStateMock).toHaveBeenCalledTimes(2);
+  });
 });

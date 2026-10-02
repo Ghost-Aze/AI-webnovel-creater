@@ -31,6 +31,7 @@ export function RevisionHistoryPanel({
   const [selected, setSelected] = useState<Revision | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -53,7 +54,7 @@ export function RevisionHistoryPanel({
     return () => {
       cancelled = true;
     };
-  }, [entityType, entityId, currentRevision]);
+  }, [entityType, entityId, currentRevision, reloadToken]);
 
   async function handleRestore() {
     if (!selected || disabled || canonStatus === "locked_canon") return;
@@ -106,9 +107,17 @@ export function RevisionHistoryPanel({
         </span>
       </div>
       {error && (
-        <p className="form-error revision-conflict" role="alert">
-          {error}
-        </p>
+        <div className="error-state revision-conflict" role="alert">
+          <span>{error}</span>
+          <button
+            className="button button-ghost button-small"
+            type="button"
+            onClick={() => setReloadToken((current) => current + 1)}
+            disabled={isSaving}
+          >
+            Try again
+          </button>
+        </div>
       )}
       {isLoading ? (
         <p className="loading-state">Loading history…</p>

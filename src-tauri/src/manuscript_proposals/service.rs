@@ -35,6 +35,7 @@ impl ManuscriptProposalService {
         }
         self.projects
             .chapter_belongs_to_project(&input.chapter_id, &project_id)?;
+        self.projects.chapter_is_active(&input.chapter_id)?;
         self.repository.create(&build_proposal(project_id, input)?)
     }
 
@@ -154,6 +155,56 @@ mod tests {
         assert_eq!(
             proposals.reject(&rejected.id).unwrap().status,
             ProposalStatus::Rejected
+        );
+    }
+
+    #[test]
+    fn proposal_creation_rejects_an_archived_chapter() {
+        let connection = db::in_memory().unwrap();
+        let projects_repo = ProjectRepository::new(connection.clone());
+        let projects = ProjectService::new(projects_repo.clone());
+        let manuscripts = ManuscriptService::new(
+            ManuscriptRepository::new(connection.clone()),
+            projects_repo.clone(),
+        );
+        let proposals = ManuscriptProposalService::new(
+            ManuscriptProposalRepository::new(connection),
+            projects_repo,
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Archived proposal chapter".into(),
+                description: None,
+            })
+            .unwrap();
+        let chapter = manuscripts
+            .create_chapter(
+                project.id.clone(),
+                CreateChapterInput {
+                    number: 1,
+                    title: "Opening".into(),
+                    synopsis: None,
+                },
+            )
+            .unwrap();
+        manuscripts
+            .archive_chapter(&chapter.id, chapter.revision)
+            .unwrap();
+
+        assert_eq!(
+            proposals.create(
+                project.id,
+                CreateManuscriptProposalInput {
+                    chapter_id: chapter.id,
+                    base_revision: 1,
+                    proposed_content: "Archived draft".into(),
+                    content_format: ManuscriptContentFormat::PlainText,
+                    rationale: None,
+                    actor_type: None,
+                    actor_id: None,
+                },
+            ),
+            Err(crate::error::AppError::ArchivedChapter)
         );
     }
 }

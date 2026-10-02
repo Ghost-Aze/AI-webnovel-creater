@@ -59,6 +59,9 @@ export function CharacterPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [isStateSaving, setIsStateSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [stateLoadError, setStateLoadError] = useState<string | null>(null);
+  const [stateReloadToken, setStateReloadToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const stateDirtyRef = useRef(false);
@@ -72,6 +75,7 @@ export function CharacterPanel({
 
   const loadCharacters = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     setError(null);
     try {
       const loaded = await listCharacters(projectId);
@@ -86,7 +90,7 @@ export function CharacterPanel({
         return loaded[0]?.id ?? null;
       });
     } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
+      setLoadError(normalizeCommandError(commandError).message);
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +104,7 @@ export function CharacterPanel({
     if (!selectedId) {
       stateDirtyRef.current = false;
       stateInteractionRef.current = false;
+      setStateLoadError(null);
       setState(emptyState);
       return;
     }
@@ -107,6 +112,7 @@ export function CharacterPanel({
     stateDirtyRef.current = false;
     stateInteractionRef.current = false;
     setSaved(false);
+    setStateLoadError(null);
     void getCharacterState(selectedId)
       .then((loaded) => {
         if (
@@ -118,12 +124,14 @@ export function CharacterPanel({
         }
       })
       .catch((commandError) => {
-        if (!cancelled) setError(normalizeCommandError(commandError).message);
+        if (!cancelled) {
+          setStateLoadError(normalizeCommandError(commandError).message);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, stateReloadToken]);
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -229,7 +237,7 @@ export function CharacterPanel({
         </button>
       </div>
 
-      {error && (
+      {error && !loadError && (
         <p className="form-error" role="alert">
           {error}
         </p>
@@ -239,6 +247,18 @@ export function CharacterPanel({
         <p className="loading-state" role="status">
           Loading characters…
         </p>
+      ) : loadError ? (
+        <div className="error-state" role="alert">
+          <strong>Characters could not be loaded.</strong>
+          <span>{loadError}</span>
+          <button
+            className="button button-ghost"
+            type="button"
+            onClick={() => void loadCharacters()}
+          >
+            Try again
+          </button>
+        </div>
       ) : characters.length === 0 ? (
         <div className="character-empty">
           <p>No characters yet.</p>
@@ -363,78 +383,94 @@ export function CharacterPanel({
                 onRestored={() => void loadCharacters()}
               />
 
-              <form
-                className="character-state-form"
-                onSubmit={handleStateSubmit}
-              >
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">Continuity</p>
-                    <h3>Current state</h3>
-                  </div>
-                </div>
-                <label className="field-label" htmlFor="character-location">
-                  Current location
-                  <input
-                    id="character-location"
-                    value={state.current_location}
-                    disabled={projectArchived || stateLocked}
-                    onFocus={markStateEditing}
-                    onChange={(event) =>
-                      setStateField("current_location", event.target.value)
-                    }
-                  />
-                </label>
-                <label
-                  className="field-label"
-                  htmlFor="character-emotional-state"
-                >
-                  Emotional state
-                  <input
-                    id="character-emotional-state"
-                    value={state.emotional_state}
-                    disabled={projectArchived || stateLocked}
-                    onFocus={markStateEditing}
-                    onChange={(event) =>
-                      setStateField("emotional_state", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="field-label" htmlFor="character-goals">
-                  Goals
-                  <textarea
-                    id="character-goals"
-                    rows={3}
-                    value={state.goals}
-                    disabled={projectArchived || stateLocked}
-                    onFocus={markStateEditing}
-                    onChange={(event) =>
-                      setStateField("goals", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="field-label" htmlFor="character-arc-role">
-                  Current arc role
-                  <input
-                    id="character-arc-role"
-                    value={state.current_arc_role}
-                    disabled={projectArchived || stateLocked}
-                    onFocus={markStateEditing}
-                    onChange={(event) =>
-                      setStateField("current_arc_role", event.target.value)
-                    }
-                  />
-                </label>
-                {!projectArchived && !stateLocked && (
+              {stateLoadError ? (
+                <div className="error-state" role="alert">
+                  <strong>Character state could not be loaded.</strong>
+                  <span>{stateLoadError}</span>
                   <button
-                    className="button button-primary button-small"
-                    type="submit"
-                    disabled={isStateSaving}
+                    className="button button-ghost"
+                    type="button"
+                    onClick={() =>
+                      setStateReloadToken((current) => current + 1)
+                    }
                   >
-                    {isStateSaving ? "Saving…" : "Save state"}
+                    Try again
                   </button>
-                )}
-              </form>
+                </div>
+              ) : (
+                <form
+                  className="character-state-form"
+                  onSubmit={handleStateSubmit}
+                >
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">Continuity</p>
+                      <h3>Current state</h3>
+                    </div>
+                  </div>
+                  <label className="field-label" htmlFor="character-location">
+                    Current location
+                    <input
+                      id="character-location"
+                      value={state.current_location}
+                      disabled={projectArchived || stateLocked}
+                      onFocus={markStateEditing}
+                      onChange={(event) =>
+                        setStateField("current_location", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label
+                    className="field-label"
+                    htmlFor="character-emotional-state"
+                  >
+                    Emotional state
+                    <input
+                      id="character-emotional-state"
+                      value={state.emotional_state}
+                      disabled={projectArchived || stateLocked}
+                      onFocus={markStateEditing}
+                      onChange={(event) =>
+                        setStateField("emotional_state", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="field-label" htmlFor="character-goals">
+                    Goals
+                    <textarea
+                      id="character-goals"
+                      rows={3}
+                      value={state.goals}
+                      disabled={projectArchived || stateLocked}
+                      onFocus={markStateEditing}
+                      onChange={(event) =>
+                        setStateField("goals", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="field-label" htmlFor="character-arc-role">
+                    Current arc role
+                    <input
+                      id="character-arc-role"
+                      value={state.current_arc_role}
+                      disabled={projectArchived || stateLocked}
+                      onFocus={markStateEditing}
+                      onChange={(event) =>
+                        setStateField("current_arc_role", event.target.value)
+                      }
+                    />
+                  </label>
+                  {!projectArchived && !stateLocked && (
+                    <button
+                      className="button button-primary button-small"
+                      type="submit"
+                      disabled={isStateSaving}
+                    >
+                      {isStateSaving ? "Saving…" : "Save state"}
+                    </button>
+                  )}
+                </form>
+              )}
 
               <RevisionHistoryPanel
                 entityType="character_state"
@@ -444,7 +480,7 @@ export function CharacterPanel({
                 disabled={projectArchived}
                 onRestored={() => {
                   stateDirtyRef.current = false;
-                  void getCharacterState(selectedCharacter.id).then(setState);
+                  setStateReloadToken((current) => current + 1);
                 }}
               />
             </div>

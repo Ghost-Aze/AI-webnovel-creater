@@ -8,7 +8,7 @@ use super::types::{
     OmissionReason,
 };
 
-pub trait ContextSource {
+pub trait ContextSource: Sync {
     fn load_project(&self, project_id: &str) -> AppResult<Project>;
     fn load_character(&self, project_id: &str, character_id: &str) -> AppResult<Character>;
     fn load_character_state(&self, character_id: &str) -> AppResult<CharacterState>;

@@ -109,6 +109,16 @@ impl ManuscriptProposalRepository {
         if proposal.status != ProposalStatus::Draft {
             return Err(AppError::InvalidProposal);
         }
+        let project_status: String = transaction
+            .query_row(
+                "SELECT status FROM projects WHERE id = ?1",
+                [&proposal.project_id],
+                |row| row.get(0),
+            )
+            .map_err(map_not_found)?;
+        if project_status == "archived" {
+            return Err(AppError::ArchivedProject);
+        }
         let chapter_status: String = transaction
             .query_row(
                 "SELECT status FROM chapters WHERE id = ?1 AND project_id = ?2",
@@ -140,7 +150,7 @@ impl ManuscriptProposalRepository {
             created_at: manuscript.created_at,
             updated_at: timestamp.clone(),
         };
-        transaction.execute(
+        let changed = transaction.execute(
             "UPDATE manuscripts SET content = ?1, content_format = ?2, revision = ?3, updated_at = ?4
              WHERE id = ?5 AND revision = ?6",
             rusqlite::params![
@@ -152,6 +162,9 @@ impl ManuscriptProposalRepository {
                 expected_revision as i64,
             ],
         )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
         transaction.execute(
             "INSERT INTO manuscript_revisions
              (id, manuscript_id, revision, content, content_format, label, actor_type, actor_id, created_at)
@@ -172,11 +185,14 @@ impl ManuscriptProposalRepository {
                 updated.updated_at,
             ],
         )?;
-        transaction.execute(
+        let changed = transaction.execute(
             "UPDATE manuscript_proposals SET status = 'accepted', updated_at = ?1
-             WHERE id = ?2 AND status = 'draft'",
+            WHERE id = ?2 AND status = 'draft'",
             rusqlite::params![now_utc(), id],
         )?;
+        if changed != 1 {
+            return Err(AppError::InvalidProposal);
+        }
         transaction.commit()?;
         Ok(updated)
     }

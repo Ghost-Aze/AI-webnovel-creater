@@ -22,6 +22,7 @@ current Phase 1 implementation.
 - Phase 10 supplies durable project-scoped Developer Chat conversations and a proposal-backed memory-tool boundary. Chat history is working context, not canonical memory; AI character changes remain draft proposals until explicit promotion.
 - Phase 11 supplies structured chapters, one-to-one manuscript documents, optimistic-concurrency saves, immutable manuscript snapshots and a focused plain-text editor route. Rich text, autosave, collaboration, sync and export remain separate phases.
 - Phase 12 adds an explicit manuscript content format, sanitized rich-text editing, debounce autosave and user-directed conflict resolution. Stale saves never retry silently; keeping local prose creates a new revision against the server base.
+- Phase 14 adds a singleton local `UserProfile` and global `UserPreferences` boundary backed by SQLite migration `0008`. Profile and preference updates are typed, normalized and optimistic-revision guarded; this phase does not add authentication, sync, project overrides or a settings UI.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -86,6 +87,24 @@ current Phase 1 implementation.
 - Conversations and manuscript documents are separate entities.
 - A chapter is a structured manuscript document with revisions; chat messages are working context and are not the canonical chapter body.
 - Targeted edits produce a patch or a new revision. Concurrent manuscript edits create a user-visible conflict instead of silently overwriting content.
+
+## Local user profile and preferences
+
+- The stable `local_user` key identifies the application-local writer. It is
+  deliberately not an account, authentication credential or cloud-sync
+  identity.
+- `user_profile` stores display name and preferred language. `user_preferences`
+  stores provider-independent writing preferences as typed columns, including
+  narrator, POV, chapter/scene lengths, dialogue density, prose level, pacing
+  and repetition prevention.
+- Migration defaults are deterministic and singleton rows are created
+  idempotently. Rust owns SQL and SQLite boolean conversion; the client sees
+  only serde-compatible profile/preferences types.
+- Updates are explicit, normalized and guarded by the current revision inside
+  one SQLite transaction. Stale updates return `conflict` and do not partially
+  write a row.
+- Authentication, cloud sync, multi-user access, project-level preference
+  overrides and a settings screen require a separately approved phase.
 
 ## Security and data lifecycle
 

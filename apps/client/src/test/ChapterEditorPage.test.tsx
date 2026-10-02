@@ -207,4 +207,22 @@ describe("ChapterEditorPage", () => {
       { timeout: 2_000 },
     );
   });
+
+  it("can retry a failed chapter load", async () => {
+    const user = userEvent.setup();
+    getChapterMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce(chapter);
+
+    renderEditor();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We could not open this chapter.",
+    );
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("textbox", { name: "Manuscript" }),
+    ).toBeInTheDocument();
+    expect(getChapterMock).toHaveBeenCalledTimes(2);
+  });
 });

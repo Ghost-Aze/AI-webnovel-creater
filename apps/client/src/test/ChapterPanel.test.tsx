@@ -46,11 +46,12 @@ describe("ChapterPanel", () => {
     );
 
     expect(await screen.findByText("Opening")).toBeInTheDocument();
+    expect(screen.getByLabelText("No.")).toHaveValue(2);
     await user.type(screen.getByLabelText("Title"), " Second");
     await user.click(screen.getByRole("button", { name: "New chapter" }));
     await waitFor(() => expect(createChapterMock).toHaveBeenCalled());
     expect(createChapterMock).toHaveBeenCalledWith("project-1", {
-      number: 1,
+      number: 2,
       title: " Second",
     });
   });
@@ -69,5 +70,23 @@ describe("ChapterPanel", () => {
     expect(
       screen.queryByRole("button", { name: "New chapter" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("can retry a failed chapter load", async () => {
+    const user = userEvent.setup();
+    listChaptersMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce([chapter]);
+
+    render(
+      <MemoryRouter>
+        <ChapterPanel projectId="project-1" projectArchived={false} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Opening")).toBeInTheDocument();
+    expect(listChaptersMock).toHaveBeenCalledTimes(2);
   });
 });

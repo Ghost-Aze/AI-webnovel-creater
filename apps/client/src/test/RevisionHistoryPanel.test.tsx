@@ -128,4 +128,17 @@ describe("RevisionHistoryPanel", () => {
       screen.queryByText("raw serialized conflict"),
     ).not.toBeInTheDocument();
   });
+
+  it("can retry a failed revision history load", async () => {
+    const user = userEvent.setup();
+    listMemoryHistoryMock
+      .mockRejectedValueOnce({ code: "storage" })
+      .mockResolvedValueOnce([revisionOne, revisionTwo]);
+    renderPanel();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Revision 2")).toBeInTheDocument();
+    expect(listMemoryHistoryMock).toHaveBeenCalledTimes(2);
+  });
 });

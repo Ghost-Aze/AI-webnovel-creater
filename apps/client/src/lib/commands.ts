@@ -60,6 +60,12 @@ import type {
   RouteDecision,
   RoutingRequest,
 } from "../types/provider";
+import type {
+  UpdateUserPreferencesInput,
+  UpdateUserProfileInput,
+  UserPreferences,
+  UserProfile,
+} from "../types/user";
 
 async function call<T>(
   command: string,
@@ -95,6 +101,34 @@ export function updateProject(
 
 export function archiveProject(id: string): Promise<Project> {
   return call<Project>("project_archive", { id });
+}
+
+export function getUserProfile(): Promise<UserProfile> {
+  return call<UserProfile>("user_profile_get", {});
+}
+
+export function updateUserProfile(
+  input: UpdateUserProfileInput,
+  expectedRevision: number,
+): Promise<UserProfile> {
+  return call<UserProfile>("user_profile_update", {
+    input,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function getUserPreferences(): Promise<UserPreferences> {
+  return call<UserPreferences>("user_preferences_get", {});
+}
+
+export function updateUserPreferences(
+  input: UpdateUserPreferencesInput,
+  expectedRevision: number,
+): Promise<UserPreferences> {
+  return call<UserPreferences>("user_preferences_update", {
+    input,
+    expected_revision: expectedRevision,
+  });
 }
 
 export function createChapter(

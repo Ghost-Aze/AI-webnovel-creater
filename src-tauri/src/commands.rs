@@ -30,6 +30,9 @@ use crate::{
         CanonStatus, CreateProposalInput, MemoryEntityType, MemoryProposal, MemoryRevision,
         ProposalStatus,
     },
+    domain::user::{
+        UpdateUserPreferencesInput, UpdateUserProfileInput, UserPreferences, UserProfile,
+    },
     error::AppResult,
     memory_tools::{MemoryToolRequest, MemoryToolService},
     orchestration::{NarrativeOrchestrator, OrchestrationRequest, OrchestrationResult},
@@ -40,6 +43,7 @@ use crate::{
     },
     revisions::service::ProposalService,
     revisions::service::RevisionService,
+    users::service::UserService,
 };
 
 #[cfg(feature = "tauri-app")]
@@ -79,6 +83,36 @@ pub fn archive_project(
     id: String,
 ) -> AppResult<Project> {
     report("project_archive", service.archive(&id))
+}
+
+pub fn get_user_profile(service: &UserService) -> AppResult<UserProfile> {
+    report("user_profile_get", service.get_profile())
+}
+
+pub fn update_user_profile(
+    service: &UserService,
+    input: UpdateUserProfileInput,
+    expected_revision: u64,
+) -> AppResult<UserProfile> {
+    report(
+        "user_profile_update",
+        service.update_profile(input, expected_revision),
+    )
+}
+
+pub fn get_user_preferences(service: &UserService) -> AppResult<UserPreferences> {
+    report("user_preferences_get", service.get_preferences())
+}
+
+pub fn update_user_preferences(
+    service: &UserService,
+    input: UpdateUserPreferencesInput,
+    expected_revision: u64,
+) -> AppResult<UserPreferences> {
+    report(
+        "user_preferences_update",
+        service.update_preferences(input, expected_revision),
+    )
 }
 
 pub fn create_conversation(
@@ -444,7 +478,7 @@ pub async fn orchestrate(
     )
 }
 
-pub async fn developer_chat_send(
+pub async fn send_developer_chat(
     service: &ConversationService,
     registry: &ProviderRegistry,
     compiler: &ContextCompiler,
@@ -459,7 +493,7 @@ pub async fn developer_chat_send(
     )
 }
 
-pub async fn chapter_chat_send(
+pub async fn send_chapter_chat(
     conversations: &ConversationService,
     manuscripts: &crate::manuscripts::service::ManuscriptService,
     registry: &ProviderRegistry,
@@ -483,7 +517,7 @@ pub async fn chapter_chat_send(
     )
 }
 
-pub fn memory_tool_propose(
+pub fn propose_memory_tool(
     service: &MemoryToolService,
     request: MemoryToolRequest,
 ) -> AppResult<crate::domain::revision::MemoryProposal> {
@@ -592,6 +626,34 @@ mod tauri_commands {
     }
 
     #[tauri::command(rename_all = "snake_case")]
+    pub fn user_profile_get(state: State<'_, AppState>) -> AppResult<UserProfile> {
+        super::get_user_profile(&state.user_service)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn user_profile_update(
+        state: State<'_, AppState>,
+        input: UpdateUserProfileInput,
+        expected_revision: u64,
+    ) -> AppResult<UserProfile> {
+        super::update_user_profile(&state.user_service, input, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn user_preferences_get(state: State<'_, AppState>) -> AppResult<UserPreferences> {
+        super::get_user_preferences(&state.user_service)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn user_preferences_update(
+        state: State<'_, AppState>,
+        input: UpdateUserPreferencesInput,
+        expected_revision: u64,
+    ) -> AppResult<UserPreferences> {
+        super::update_user_preferences(&state.user_service, input, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
     pub fn conversation_create(
         state: State<'_, AppState>,
         input: CreateConversationInput,
@@ -636,7 +698,7 @@ mod tauri_commands {
         state: State<'_, AppState>,
         request: DeveloperChatSendRequest,
     ) -> AppResult<DeveloperChatSendResult> {
-        super::developer_chat_send(
+        super::send_developer_chat(
             &state.conversation_service,
             &state.provider_registry,
             &state.context_compiler,
@@ -652,7 +714,7 @@ mod tauri_commands {
         chapter_id: String,
         request: DeveloperChatSendRequest,
     ) -> AppResult<DeveloperChatSendResult> {
-        super::chapter_chat_send(
+        super::send_chapter_chat(
             &state.conversation_service,
             &state.manuscript_service,
             &state.provider_registry,
@@ -669,7 +731,7 @@ mod tauri_commands {
         state: State<'_, AppState>,
         request: MemoryToolRequest,
     ) -> AppResult<crate::domain::revision::MemoryProposal> {
-        super::memory_tool_propose(&state.memory_tool_service, request)
+        super::propose_memory_tool(&state.memory_tool_service, request)
     }
 
     #[tauri::command(rename_all = "snake_case")]
@@ -1041,10 +1103,64 @@ mod tests {
             QualityMode, RouteSelectionReason, RoutingRequest,
         },
         revisions::{repository::RevisionRepository, service::RevisionService},
+        users::{repository::UserRepository, service::UserService},
     };
 
     fn service() -> ProjectService {
         ProjectService::new(ProjectRepository::new(db::in_memory().unwrap()))
+    }
+
+    fn user_service() -> UserService {
+        UserService::new(UserRepository::new(db::in_memory().unwrap()))
+    }
+
+    #[test]
+    fn user_command_helpers_delegate_typed_profile_and_preferences() {
+        let service = user_service();
+        let profile = get_user_profile(&service).unwrap();
+        assert_eq!(profile.display_name, "Writer");
+        let updated = update_user_profile(
+            &service,
+            UpdateUserProfileInput {
+                display_name: "Mira".to_string(),
+                preferred_language: "tr".to_string(),
+            },
+            1,
+        )
+        .unwrap();
+        assert_eq!(updated.revision, 2);
+
+        let preferences = get_user_preferences(&service).unwrap();
+        assert!(preferences.avoid_repetition);
+        let updated = update_user_preferences(
+            &service,
+            UpdateUserPreferencesInput {
+                preferred_narrator: "first_person".to_string(),
+                preferred_pov: "close".to_string(),
+                chapter_length: 1800,
+                scene_length: 500,
+                dialogue_density: 60,
+                prose_level: "lyrical".to_string(),
+                pacing: "brisk".to_string(),
+                avoid_repetition: false,
+            },
+            1,
+        )
+        .unwrap();
+        assert_eq!(updated.revision, 2);
+        assert!(!updated.avoid_repetition);
+
+        let error = update_user_profile(
+            &service,
+            UpdateUserProfileInput {
+                display_name: "Stale".to_string(),
+                preferred_language: "en".to_string(),
+            },
+            1,
+        )
+        .unwrap_err();
+        assert_eq!(error, crate::error::AppError::Conflict);
+        assert!(!serde_json::to_string(&error).unwrap().contains("SELECT"));
     }
 
     #[test]
@@ -1366,5 +1482,8 @@ mod tests {
         let source = include_str!("commands.rs");
         let attribute = ["#[tauri::command(", "rename_all = \"snake_case\")]"].concat();
         assert!(source.contains(&attribute));
+        assert!(source.contains("pub fn user_profile_update"));
+        assert!(source.contains("pub fn user_preferences_update"));
+        assert!(source.contains("expected_revision: u64"));
     }
 }

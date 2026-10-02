@@ -1,3 +1,4 @@
+use rusqlite::Transaction;
 use serde::Serialize;
 
 use crate::{
@@ -251,14 +252,21 @@ impl CharacterRepository {
                 map_character,
             )
             .map_err(map_not_found)?;
-        ensure_mutable(&existing.canon_status, existing.revision, expected_revision)?;
+        ensure_mutable(
+            &transaction,
+            &existing.project_id,
+            &existing.status,
+            &existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
         let mut current = existing.clone();
         current.name = name.to_string();
         current.summary = summary.to_string();
         current.role = role.to_string();
         current.revision += 1;
         current.updated_at = now_utc();
-        transaction
+        let changed = transaction
             .execute(
                 "UPDATE characters SET name = ?1, summary = ?2, role = ?3, revision = ?4, updated_at = ?5
                  WHERE id = ?6 AND revision = ?7 AND status = 'active'",
@@ -273,6 +281,9 @@ impl CharacterRepository {
                 ],
             )
             .map_err(map_character_write_error)?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
         let changed = transaction.execute(
             "UPDATE memory_proposals SET status = 'accepted', updated_at = ?1
              WHERE id = ?2 AND project_id = ?3 AND status = 'draft'",
@@ -429,11 +440,18 @@ impl CharacterRepository {
                 map_character,
             )
             .map_err(map_not_found)?;
-        ensure_mutable(&existing.canon_status, existing.revision, expected_revision)?;
+        ensure_mutable(
+            &transaction,
+            &existing.project_id,
+            &existing.status,
+            &existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
         let mut current = snapshot.clone();
         current.revision = expected_revision + 1;
         current.updated_at = now_utc();
-        transaction.execute(
+        let changed = transaction.execute(
             "UPDATE characters SET name = ?1, summary = ?2, role = ?3, status = ?4,
                     canon_status = ?5, revision = ?6, updated_at = ?7
              WHERE id = ?8 AND revision = ?9",
@@ -449,6 +467,9 @@ impl CharacterRepository {
                 expected_revision as i64,
             ],
         )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
         let revision = build_revision(
             &current.project_id,
             MemoryEntityType::Character,
@@ -485,7 +506,22 @@ impl CharacterRepository {
                 map_state,
             )
             .map_err(map_not_found)?;
-        ensure_mutable(&existing.canon_status, existing.revision, expected_revision)?;
+        let character = transaction
+            .query_row(
+                "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
+                 FROM characters WHERE id = ?1",
+                [&snapshot.character_id],
+                map_character,
+            )
+            .map_err(map_not_found)?;
+        ensure_mutable(
+            &transaction,
+            &character.project_id,
+            &character.status,
+            &existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
         let mut current = snapshot.clone();
         current.revision = expected_revision + 1;
         current.updated_at = now_utc();
@@ -558,6 +594,7 @@ impl CharacterRepository {
                         map_character,
                     )
                     .map_err(map_not_found)?;
+                ensure_active_for_canon_status(&transaction, &existing)?;
                 if existing.revision != expected_revision {
                     return Err(AppError::Conflict);
                 }
@@ -604,6 +641,15 @@ impl CharacterRepository {
                         map_state,
                     )
                     .map_err(map_not_found)?;
+                let character = transaction
+                    .query_row(
+                        "SELECT id, project_id, name, summary, role, status, revision, canon_status, created_at, updated_at
+                         FROM characters WHERE id = ?1",
+                        [entity_id],
+                        map_character,
+                    )
+                    .map_err(map_not_found)?;
+                ensure_active_for_canon_status(&transaction, &character)?;
                 if existing.revision != expected_revision {
                     return Err(AppError::Conflict);
                 }
@@ -695,16 +741,48 @@ fn map_state(row: &rusqlite::Row<'_>) -> rusqlite::Result<CharacterState> {
     })
 }
 
+fn ensure_active_for_canon_status(
+    transaction: &Transaction<'_>,
+    character: &Character,
+) -> AppResult<()> {
+    ensure_project_active(transaction, &character.project_id)?;
+    if character.status == CharacterStatus::Archived {
+        return Err(AppError::ArchivedCharacter);
+    }
+    Ok(())
+}
+
 fn ensure_mutable(
+    transaction: &Transaction<'_>,
+    project_id: &str,
+    character_status: &CharacterStatus,
     canon_status: &CanonStatus,
     current_revision: u64,
     expected_revision: u64,
 ) -> AppResult<()> {
+    ensure_project_active(transaction, project_id)?;
+    if *character_status == CharacterStatus::Archived {
+        return Err(AppError::ArchivedCharacter);
+    }
     if *canon_status == CanonStatus::LockedCanon {
         return Err(AppError::LockedCanon);
     }
     if current_revision != expected_revision {
         return Err(AppError::Conflict);
+    }
+    Ok(())
+}
+
+fn ensure_project_active(transaction: &Transaction<'_>, project_id: &str) -> AppResult<()> {
+    let status: String = transaction
+        .query_row(
+            "SELECT status FROM projects WHERE id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .map_err(map_not_found)?;
+    if status == "archived" {
+        return Err(AppError::ArchivedProject);
     }
     Ok(())
 }

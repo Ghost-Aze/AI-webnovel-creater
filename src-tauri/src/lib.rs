@@ -12,6 +12,7 @@ pub mod orchestration;
 pub mod projects;
 pub mod provider;
 pub mod revisions;
+pub mod users;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -27,11 +28,14 @@ pub struct AppState {
     pub provider_runtime: provider::ProviderRuntime,
     pub revision_service: revisions::service::RevisionService,
     pub proposal_service: revisions::service::ProposalService,
+    pub user_service: users::service::UserService,
 }
 
 #[cfg(feature = "tauri-app")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri::Manager;
+
     tauri::Builder::default()
         .setup(|app| {
             let _ = tracing_subscriber::fmt()
@@ -83,6 +87,9 @@ pub fn run() {
             let provider_runtime =
                 provider::ProviderRuntime::new(provider::application_credential_store());
             let provider_registry = provider_runtime.registry();
+            let user_service = users::service::UserService::new(
+                users::repository::UserRepository::new(database.clone()),
+            );
             app.manage(AppState {
                 character_service,
                 conversation_service,
@@ -96,6 +103,7 @@ pub fn run() {
                 provider_runtime,
                 revision_service,
                 proposal_service,
+                user_service,
             });
             Ok(())
         })
@@ -105,6 +113,10 @@ pub fn run() {
             commands::project_get,
             commands::project_update,
             commands::project_archive,
+            commands::user_profile_get,
+            commands::user_profile_update,
+            commands::user_preferences_get,
+            commands::user_preferences_update,
             commands::conversation_create,
             commands::conversation_list,
             commands::conversation_get,

@@ -151,6 +151,10 @@ impl ChapterChatService {
                 message: "Chapter chat must belong to the requested chapter.".into(),
             });
         }
+        let chapter = manuscripts.get_chapter(chapter_id)?;
+        if chapter.status == crate::domain::manuscript::ChapterStatus::Archived {
+            return Err(AppError::ArchivedChapter);
+        }
         let manuscript = manuscripts.get_manuscript(chapter_id)?;
         DeveloperChatService::send_for_kind(
             conversations,
@@ -396,5 +400,64 @@ mod tests {
             .blocks
             .iter()
             .any(|block| block.content.contains("The gate waited.")));
+    }
+
+    #[test]
+    fn chapter_chat_rejects_an_archived_chapter_before_provider_execution() {
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let characters = CharacterService::new(CharacterRepository::new(connection.clone()));
+        let manuscripts = ManuscriptService::new(
+            ManuscriptRepository::new(connection.clone()),
+            ProjectRepository::new(connection.clone()),
+        );
+        let conversations = ConversationService::new(
+            super::super::repository::ConversationRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Archived Chapter Chat".into(),
+                description: None,
+            })
+            .unwrap();
+        let chapter = manuscripts
+            .create_chapter(
+                project.id.clone(),
+                CreateChapterInput {
+                    number: 1,
+                    title: "Opening".into(),
+                    synopsis: None,
+                },
+            )
+            .unwrap();
+        let conversation = conversations
+            .create(CreateConversationInput {
+                project_id: project.id,
+                chapter_id: Some(chapter.id.clone()),
+                kind: ConversationKind::ChapterChat,
+                title: "Chapter Chat".into(),
+            })
+            .unwrap();
+        manuscripts
+            .archive_chapter(&chapter.id, chapter.revision)
+            .unwrap();
+
+        let source = ServiceContextSource::new(projects, characters);
+        let error = block_on(ChapterChatService::send(
+            &conversations,
+            &manuscripts,
+            &ProviderRegistry::new(),
+            &crate::context::ContextCompiler::default(),
+            &source,
+            &chapter.id,
+            request(conversation.id.clone()),
+        ))
+        .unwrap_err();
+        assert_eq!(error, AppError::ArchivedChapter);
+        assert!(conversations
+            .list_messages(&conversation.id, None,)
+            .unwrap()
+            .is_empty());
     }
 }
