@@ -1,7 +1,10 @@
 use crate::{
     db::SharedConnection,
     domain::{
-        manuscript::{Chapter, ChapterListFilter, ChapterStatus, Manuscript, ManuscriptRevision},
+        manuscript::{
+            Chapter, ChapterListFilter, ChapterStatus, Manuscript, ManuscriptContentFormat,
+            ManuscriptRevision,
+        },
         revision::ActorType,
     },
     error::{AppError, AppResult},
@@ -23,6 +26,7 @@ pub struct ChapterUpdateData<'a> {
 
 pub struct ManuscriptSaveData<'a> {
     pub content: &'a str,
+    pub content_format: ManuscriptContentFormat,
     pub label: &'a str,
     pub actor_type: ActorType,
     pub actor_id: Option<&'a str>,
@@ -73,8 +77,9 @@ impl ManuscriptRepository {
             .map_err(map_chapter_write_error)?;
         let manuscript_id = crate::domain::project::new_id();
         transaction.execute(
-            "INSERT INTO manuscripts (id, chapter_id, content, revision, created_at, updated_at)
-             VALUES (?1, ?2, '', 1, ?3, ?3)",
+            "INSERT INTO manuscripts
+             (id, chapter_id, content, content_format, revision, created_at, updated_at)
+             VALUES (?1, ?2, '', 'plain_text', 1, ?3, ?3)",
             rusqlite::params![manuscript_id, chapter.id, chapter.created_at],
         )?;
         transaction.execute(
@@ -201,7 +206,7 @@ impl ManuscriptRepository {
         let connection = self.connection.lock()?;
         connection
             .query_row(
-                "SELECT id, chapter_id, content, revision, created_at, updated_at
+                "SELECT id, chapter_id, content, content_format, revision, created_at, updated_at
                  FROM manuscripts WHERE chapter_id = ?1",
                 [chapter_id],
                 map_manuscript,
@@ -228,7 +233,7 @@ impl ManuscriptRepository {
         }
         let existing = transaction
             .query_row(
-                "SELECT id, chapter_id, content, revision, created_at, updated_at
+                "SELECT id, chapter_id, content, content_format, revision, created_at, updated_at
                  FROM manuscripts WHERE chapter_id = ?1",
                 [chapter_id],
                 map_manuscript,
@@ -241,15 +246,17 @@ impl ManuscriptRepository {
             id: existing.id.clone(),
             chapter_id: existing.chapter_id.clone(),
             content: data.content.to_string(),
+            content_format: data.content_format,
             revision: data.expected_revision + 1,
             created_at: existing.created_at.clone(),
             updated_at: data.updated_at.to_string(),
         };
         transaction.execute(
-            "UPDATE manuscripts SET content = ?1, revision = ?2, updated_at = ?3
-             WHERE id = ?4 AND revision = ?5",
+            "UPDATE manuscripts SET content = ?1, content_format = ?2, revision = ?3, updated_at = ?4
+             WHERE id = ?5 AND revision = ?6",
             rusqlite::params![
                 current.content,
+                current.content_format.as_str(),
                 current.revision as i64,
                 current.updated_at,
                 current.id,
@@ -258,13 +265,14 @@ impl ManuscriptRepository {
         )?;
         transaction.execute(
             "INSERT INTO manuscript_revisions
-             (id, manuscript_id, revision, content, label, actor_type, actor_id, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             (id, manuscript_id, revision, content, content_format, label, actor_type, actor_id, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             rusqlite::params![
                 crate::domain::project::new_id(),
                 current.id,
                 current.revision as i64,
                 current.content,
+                current.content_format.as_str(),
                 data.label,
                 data.actor_type.as_str(),
                 data.actor_id,
@@ -279,7 +287,7 @@ impl ManuscriptRepository {
         let manuscript = self.get_manuscript(chapter_id)?;
         let connection = self.connection.lock()?;
         let mut statement = connection.prepare(
-            "SELECT id, manuscript_id, revision, content, label, actor_type, actor_id, created_at
+            "SELECT id, manuscript_id, revision, content, content_format, label, actor_type, actor_id, created_at
              FROM manuscript_revisions WHERE manuscript_id = ?1 ORDER BY revision DESC",
         )?;
         let rows = statement.query_map([manuscript.id], map_manuscript_revision)?;
@@ -291,7 +299,7 @@ impl ManuscriptRepository {
         let connection = self.connection.lock()?;
         connection
             .query_row(
-                "SELECT id, manuscript_id, revision, content, label, actor_type, actor_id, created_at
+                "SELECT id, manuscript_id, revision, content, content_format, label, actor_type, actor_id, created_at
                  FROM manuscript_revisions WHERE manuscript_id = ?1 AND revision = ?2",
                 rusqlite::params![manuscript.id, revision as i64],
                 map_manuscript_revision,
@@ -326,25 +334,50 @@ fn map_chapter(row: &rusqlite::Row<'_>) -> rusqlite::Result<Chapter> {
 }
 
 fn map_manuscript(row: &rusqlite::Row<'_>) -> rusqlite::Result<Manuscript> {
+    let content_format: String = row.get(3)?;
+    let content_format =
+        ManuscriptContentFormat::try_from(content_format.as_str()).map_err(|_| {
+            rusqlite::Error::FromSqlConversionFailure(
+                3,
+                rusqlite::types::Type::Text,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid manuscript content format",
+                )),
+            )
+        })?;
     Ok(Manuscript {
         id: row.get(0)?,
         chapter_id: row.get(1)?,
         content: row.get(2)?,
-        revision: row.get::<_, i64>(3)? as u64,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
+        content_format,
+        revision: row.get::<_, i64>(4)? as u64,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
     })
 }
 
 fn map_manuscript_revision(row: &rusqlite::Row<'_>) -> rusqlite::Result<ManuscriptRevision> {
-    let actor_type: String = row.get(5)?;
+    let content_format: String = row.get(4)?;
+    let content_format =
+        ManuscriptContentFormat::try_from(content_format.as_str()).map_err(|_| {
+            rusqlite::Error::FromSqlConversionFailure(
+                4,
+                rusqlite::types::Type::Text,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid manuscript content format",
+                )),
+            )
+        })?;
+    let actor_type: String = row.get(6)?;
     let actor_type = match actor_type.as_str() {
         "user" => ActorType::User,
         "ai" => ActorType::Ai,
         "system" => ActorType::System,
         _ => {
             return Err(rusqlite::Error::FromSqlConversionFailure(
-                5,
+                6,
                 rusqlite::types::Type::Text,
                 Box::new(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
@@ -358,10 +391,11 @@ fn map_manuscript_revision(row: &rusqlite::Row<'_>) -> rusqlite::Result<Manuscri
         manuscript_id: row.get(1)?,
         revision: row.get::<_, i64>(2)? as u64,
         content: row.get(3)?,
-        label: row.get(4)?,
+        content_format,
+        label: row.get(5)?,
         actor_type,
-        actor_id: row.get(6)?,
-        created_at: row.get(7)?,
+        actor_id: row.get(7)?,
+        created_at: row.get(8)?,
     })
 }
 

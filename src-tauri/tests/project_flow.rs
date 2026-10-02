@@ -33,7 +33,7 @@ fn migration_is_idempotent_and_preserves_data() {
             .unwrap()
             .query_row::<i64, _, _>("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0),)
             .unwrap(),
-        5
+        6
     );
 
     let connection = connection.lock().unwrap();
@@ -78,6 +78,14 @@ fn migration_is_idempotent_and_preserves_data() {
         .query_row::<i64, _, _>("SELECT COUNT(*) FROM manuscript_revisions", [], |row| row
             .get(0),)
         .is_ok());
+    let manuscript_columns: Vec<String> = connection
+        .prepare("PRAGMA table_info(manuscripts)")
+        .unwrap()
+        .query_map([], |row| row.get(1))
+        .unwrap()
+        .map(|value| value.unwrap())
+        .collect();
+    assert!(manuscript_columns.contains(&"content_format".to_string()));
 }
 
 #[test]

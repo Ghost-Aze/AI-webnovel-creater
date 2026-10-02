@@ -2,8 +2,8 @@ use crate::{
     domain::{
         manuscript::{
             build_chapter, normalize_label, normalize_title, Chapter, ChapterListFilter,
-            ChapterStatus, CreateChapterInput, Manuscript, ManuscriptRevision, SaveManuscriptInput,
-            UpdateChapterInput,
+            ChapterStatus, CreateChapterInput, Manuscript, ManuscriptContentFormat,
+            ManuscriptRevision, SaveManuscriptInput, UpdateChapterInput,
         },
         project::now_utc,
         revision::ActorType,
@@ -113,6 +113,9 @@ impl ManuscriptService {
             chapter_id,
             ManuscriptSaveData {
                 content: &input.content,
+                content_format: input
+                    .content_format
+                    .unwrap_or(ManuscriptContentFormat::PlainText),
                 label: &label,
                 actor_type: input.actor_type.unwrap_or(ActorType::User),
                 actor_id: input.actor_id.as_deref(),
@@ -138,6 +141,7 @@ impl ManuscriptService {
             chapter_id,
             SaveManuscriptInput {
                 content: snapshot.content,
+                content_format: Some(snapshot.content_format),
                 label: Some(format!("Restore revision {}", revision)),
                 actor_type: Some(ActorType::User),
                 actor_id: None,
@@ -192,6 +196,7 @@ mod tests {
                 &chapter.id,
                 SaveManuscriptInput {
                     content: "The gate opened.".into(),
+                    content_format: Some(ManuscriptContentFormat::PlainText),
                     label: Some("Draft 2".into()),
                     actor_type: None,
                     actor_id: None,
@@ -207,6 +212,7 @@ mod tests {
                     &chapter.id,
                     SaveManuscriptInput {
                         content: "stale".into(),
+                        content_format: Some(ManuscriptContentFormat::PlainText),
                         label: None,
                         actor_type: None,
                         actor_id: None,

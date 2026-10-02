@@ -1,5 +1,6 @@
 export type ChapterStatus = "draft" | "final" | "archived";
 export type ManuscriptActorType = "user" | "ai" | "system";
+export type ManuscriptContentFormat = "plain_text" | "html";
 
 export interface Chapter {
   id: string;
@@ -34,6 +35,7 @@ export interface Manuscript {
   id: string;
   chapter_id: string;
   content: string;
+  content_format: ManuscriptContentFormat;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -44,6 +46,7 @@ export interface ManuscriptRevision {
   manuscript_id: string;
   revision: number;
   content: string;
+  content_format: ManuscriptContentFormat;
   label: string;
   actor_type: ManuscriptActorType;
   actor_id: string | null;
@@ -52,6 +55,7 @@ export interface ManuscriptRevision {
 
 export interface SaveManuscriptInput {
   content: string;
+  content_format?: ManuscriptContentFormat | null;
   label?: string | null;
   actor_type?: ManuscriptActorType | null;
   actor_id?: string | null;

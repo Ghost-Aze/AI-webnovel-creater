@@ -20,6 +20,7 @@ vi.mock("../lib/commands", () => ({
 }));
 
 import { ChapterEditorPage } from "../features/manuscripts/ChapterEditorPage";
+import { CommandError } from "../lib/command-error";
 
 const chapter = {
   id: "chapter-1",
@@ -37,6 +38,7 @@ const manuscript = {
   id: "manuscript-1",
   chapter_id: "chapter-1",
   content: "The gate waited.",
+  content_format: "plain_text" as const,
   revision: 1,
   created_at: "2026-10-01T00:00:00Z",
   updated_at: "2026-10-01T00:00:00Z",
@@ -47,6 +49,7 @@ const initialRevision = {
   manuscript_id: "manuscript-1",
   revision: 1,
   content: "The gate waited.",
+  content_format: "plain_text" as const,
   label: "Initial draft",
   actor_type: "user" as const,
   actor_id: null,
@@ -88,7 +91,8 @@ describe("ChapterEditorPage", () => {
   it("loads prose, saves a new revision and exposes restore", async () => {
     const user = userEvent.setup();
     renderEditor();
-    const editor = await screen.findByDisplayValue("The gate waited.");
+    const editor = await screen.findByRole("textbox", { name: "Manuscript" });
+    expect(editor).toHaveTextContent("The gate waited.");
     await user.clear(editor);
     await user.type(editor, "A new dawn.");
     await user.click(screen.getByRole("button", { name: "Save manuscript" }));
@@ -111,5 +115,67 @@ describe("ChapterEditorPage", () => {
       expect(restoreManuscriptMock).toHaveBeenCalledWith("chapter-1", 1, 2),
     );
     expect(await screen.findByText("Saved revision 3")).toBeInTheDocument();
+  });
+
+  it("shows a conflict and lets the user keep the local copy explicitly", async () => {
+    const user = userEvent.setup();
+    const server = {
+      ...manuscript,
+      content: "Server copy.",
+      content_format: "html" as const,
+      revision: 4,
+    };
+    getManuscriptMock
+      .mockReset()
+      .mockResolvedValueOnce(manuscript)
+      .mockResolvedValueOnce(server);
+    saveManuscriptMock
+      .mockReset()
+      .mockRejectedValueOnce(new CommandError("conflict", "stale"))
+      .mockResolvedValueOnce({
+        ...manuscript,
+        content: "<p>Local copy.</p>",
+        content_format: "html" as const,
+        revision: 5,
+      });
+
+    renderEditor();
+    const editor = await screen.findByRole("textbox", { name: "Manuscript" });
+    await user.clear(editor);
+    await user.type(editor, "Local copy.");
+    await user.click(screen.getByRole("button", { name: "Save manuscript" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Concurrent edit detected",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Keep my local copy" }),
+    );
+    await waitFor(() =>
+      expect(saveManuscriptMock).toHaveBeenLastCalledWith(
+        "chapter-1",
+        expect.objectContaining({ expected_revision: 4 }),
+      ),
+    );
+    expect(await screen.findByText("Saved revision 5")).toBeInTheDocument();
+  });
+
+  it("autosaves dirty prose after the debounce window", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    const editor = await screen.findByRole("textbox", { name: "Manuscript" });
+    await user.clear(editor);
+    await user.type(editor, "Autosaved prose.");
+    await waitFor(
+      () =>
+        expect(saveManuscriptMock).toHaveBeenCalledWith(
+          "chapter-1",
+          expect.objectContaining({
+            label: "Autosave 2",
+            content_format: "html",
+          }),
+        ),
+      { timeout: 2_000 },
+    );
   });
 });

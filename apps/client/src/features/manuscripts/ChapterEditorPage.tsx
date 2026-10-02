@@ -16,6 +16,16 @@ import type {
   Manuscript,
   ManuscriptRevision,
 } from "../../types/manuscript";
+import { RichTextEditor } from "./rich-text";
+import { manuscriptToEditorHtml, sanitizeHtml } from "./rich-text-utils";
+
+const AUTOSAVE_DELAY_MS = 900;
+
+type SaveStatus = "saved" | "unsaved" | "saving" | "conflict";
+
+interface ConflictState {
+  server: Manuscript;
+}
 
 export function ChapterEditorPage() {
   const { projectId, chapterId } = useParams<{
@@ -29,11 +39,14 @@ export function ChapterEditorPage() {
   const [synopsis, setSynopsis] = useState("");
   const [status, setStatus] = useState<ChapterStatus>("draft");
   const [content, setContent] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [conflict, setConflict] = useState<ConflictState | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const loadEditor = useCallback(async () => {
     if (!chapterId) return;
@@ -52,7 +65,15 @@ export function ChapterEditorPage() {
       setTitle(loadedChapter.title);
       setSynopsis(loadedChapter.synopsis);
       setStatus(loadedChapter.status);
-      setContent(loadedManuscript.content);
+      setContent(
+        manuscriptToEditorHtml(
+          loadedManuscript.content,
+          loadedManuscript.content_format,
+        ),
+      );
+      setIsDirty(false);
+      setSaveStatus("saved");
+      setConflict(null);
     } catch (commandError) {
       setError(normalizeCommandError(commandError).message);
     } finally {
@@ -63,6 +84,64 @@ export function ChapterEditorPage() {
   useEffect(() => {
     void loadEditor();
   }, [loadEditor]);
+
+  const persistContent = useCallback(
+    async (base: Manuscript, nextContent: string, label: string) => {
+      if (!chapter || chapter.status === "archived") return false;
+      setIsSaving(true);
+      setError(null);
+      setSaveStatus("saving");
+      try {
+        const updated = await saveManuscript(chapter.id, {
+          content: sanitizeHtml(nextContent),
+          content_format: "html",
+          label,
+          expected_revision: base.revision,
+        });
+        setManuscript(updated);
+        setRevisions(await listManuscriptRevisions(chapter.id));
+        setIsDirty(false);
+        setSaveStatus("saved");
+        return true;
+      } catch (commandError) {
+        const normalized = normalizeCommandError(commandError);
+        if (normalized.code === "conflict") {
+          try {
+            const server = await getManuscript(chapter.id);
+            setConflict({ server });
+            setSaveStatus("conflict");
+          } catch (reloadError) {
+            setError(normalizeCommandError(reloadError).message);
+          }
+        } else {
+          setError(normalized.message);
+          setSaveStatus("unsaved");
+        }
+        return false;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [chapter],
+  );
+
+  const saveContent = useCallback(
+    async (label: string) => {
+      if (!manuscript || !isDirty || conflict) return false;
+      return persistContent(manuscript, content, label);
+    },
+    [conflict, content, isDirty, manuscript, persistContent],
+  );
+
+  useEffect(() => {
+    if (!isDirty || conflict || !manuscript || chapter?.status === "archived") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void saveContent(`Autosave ${manuscript.revision + 1}`);
+    }, AUTOSAVE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [chapter?.status, conflict, isDirty, manuscript, saveContent]);
 
   async function handleMetadataSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,24 +164,42 @@ export function ChapterEditorPage() {
 
   async function handleContentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!chapter || !manuscript || chapter.status === "archived") return;
-    setIsSaving(true);
-    setSaved(false);
+    if (!manuscript) return;
+    await saveContent(`Draft ${manuscript.revision + 1}`);
+  }
+
+  function handleContentChange(nextContent: string) {
+    setContent(nextContent);
+    setIsDirty(true);
+    setSaveStatus("unsaved");
     setError(null);
-    try {
-      const updated = await saveManuscript(chapter.id, {
-        content,
-        label: `Draft ${manuscript.revision + 1}`,
-        expected_revision: manuscript.revision,
-      });
-      setManuscript(updated);
-      setRevisions(await listManuscriptRevisions(chapter.id));
-      setSaved(true);
-    } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
-    } finally {
-      setIsSaving(false);
-    }
+  }
+
+  function useServerCopy() {
+    if (!conflict) return;
+    setManuscript(conflict.server);
+    setContent(
+      manuscriptToEditorHtml(
+        conflict.server.content,
+        conflict.server.content_format,
+      ),
+    );
+    setConflict(null);
+    setIsDirty(false);
+    setSaveStatus("saved");
+    setError(null);
+  }
+
+  async function keepLocalCopy() {
+    if (!conflict) return;
+    setIsResolving(true);
+    const resolved = await persistContent(
+      conflict.server,
+      content,
+      `Conflict resolution ${conflict.server.revision + 1}`,
+    );
+    if (resolved) setConflict(null);
+    setIsResolving(false);
   }
 
   async function handleRestore(revision: number) {
@@ -115,9 +212,12 @@ export function ChapterEditorPage() {
         manuscript.revision,
       );
       setManuscript(restored);
-      setContent(restored.content);
+      setContent(
+        manuscriptToEditorHtml(restored.content, restored.content_format),
+      );
       setRevisions(await listManuscriptRevisions(chapter.id));
-      setSaved(true);
+      setIsDirty(false);
+      setSaveStatus("saved");
     } catch (commandError) {
       setError(normalizeCommandError(commandError).message);
     }
@@ -163,29 +263,54 @@ export function ChapterEditorPage() {
             {chapter.status}
           </span>
         </div>
-        {saved && (
-          <span className="saved-message" role="status">
-            Saved revision {manuscript.revision}
-          </span>
-        )}
+        <span className={`editor-save-status is-${saveStatus}`} role="status">
+          {saveStatus === "saving" && "Saving…"}
+          {saveStatus === "unsaved" && "Unsaved changes"}
+          {saveStatus === "conflict" && "Conflict needs review"}
+          {saveStatus === "saved" && `Saved revision ${manuscript.revision}`}
+        </span>
       </header>
+      {conflict && (
+        <section className="editor-conflict" role="alert">
+          <div>
+            <p className="eyebrow">Concurrent edit detected</p>
+            <h2>
+              Your local copy is based on revision {manuscript.revision}, but
+              the server is now at revision {conflict.server.revision}.
+            </h2>
+            <p>Choose a copy before writing again. Nothing was overwritten.</p>
+          </div>
+          <div className="editor-conflict-actions">
+            <button
+              className="button button-ghost"
+              type="button"
+              onClick={useServerCopy}
+              disabled={isResolving}
+            >
+              Use server copy
+            </button>
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => void keepLocalCopy()}
+              disabled={isResolving}
+            >
+              {isResolving ? "Saving local copy…" : "Keep my local copy"}
+            </button>
+          </div>
+        </section>
+      )}
       <div className="editor-grid">
         <div className="editor-primary">
           <form
             className="editor-manuscript-form"
-            onSubmit={handleContentSubmit}
+            onSubmit={(event) => void handleContentSubmit(event)}
           >
-            <label className="field-label" htmlFor="chapter-content">
-              Manuscript
-              <textarea
-                id="chapter-content"
-                className="manuscript-editor"
-                value={content}
-                onChange={(event) => setContent(event.target.value)}
-                disabled={archived}
-                placeholder="Begin the chapter…"
-              />
-            </label>
+            <RichTextEditor
+              value={content}
+              disabled={archived || Boolean(conflict)}
+              onChange={handleContentChange}
+            />
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -193,12 +318,12 @@ export function ChapterEditorPage() {
             )}
             <div className="editor-actions">
               <span className="editor-revision">
-                Revision {manuscript.revision}
+                Revision {manuscript.revision} · HTML
               </span>
               <button
                 className="button button-primary"
                 type="submit"
-                disabled={archived || isSaving}
+                disabled={archived || isSaving || !isDirty || Boolean(conflict)}
               >
                 {isSaving ? "Saving…" : "Save manuscript"}
               </button>
@@ -275,7 +400,9 @@ export function ChapterEditorPage() {
                 <div className="editor-revision-item" key={revision.id}>
                   <div>
                     <strong>Revision {revision.revision}</strong>
-                    <small>{revision.label}</small>
+                    <small>
+                      {revision.label} · {revision.content_format}
+                    </small>
                   </div>
                   <button
                     className="button button-ghost button-small"

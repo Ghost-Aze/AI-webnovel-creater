@@ -7,6 +7,34 @@ use super::{
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManuscriptContentFormat {
+    PlainText,
+    Html,
+}
+
+impl ManuscriptContentFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::PlainText => "plain_text",
+            Self::Html => "html",
+        }
+    }
+}
+
+impl TryFrom<&str> for ManuscriptContentFormat {
+    type Error = AppError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "plain_text" => Ok(Self::PlainText),
+            "html" => Ok(Self::Html),
+            _ => Err(AppError::InvalidStatus),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChapterStatus {
     Draft,
@@ -79,6 +107,7 @@ pub struct Manuscript {
     pub id: String,
     pub chapter_id: String,
     pub content: String,
+    pub content_format: ManuscriptContentFormat,
     pub revision: u64,
     pub created_at: String,
     pub updated_at: String,
@@ -90,6 +119,7 @@ pub struct ManuscriptRevision {
     pub manuscript_id: String,
     pub revision: u64,
     pub content: String,
+    pub content_format: ManuscriptContentFormat,
     pub label: String,
     pub actor_type: ActorType,
     pub actor_id: Option<String>,
@@ -99,6 +129,8 @@ pub struct ManuscriptRevision {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SaveManuscriptInput {
     pub content: String,
+    #[serde(default)]
+    pub content_format: Option<ManuscriptContentFormat>,
     #[serde(default)]
     pub label: Option<String>,
     #[serde(default)]
@@ -195,6 +227,18 @@ mod tests {
         assert_eq!(
             normalize_label(Some("Final pass".to_string())),
             "Final pass"
+        );
+    }
+
+    #[test]
+    fn manuscript_content_formats_use_stable_wire_names() {
+        assert_eq!(
+            serde_json::to_string(&ManuscriptContentFormat::PlainText).unwrap(),
+            "\"plain_text\""
+        );
+        assert_eq!(
+            ManuscriptContentFormat::try_from("html").unwrap(),
+            ManuscriptContentFormat::Html
         );
     }
 }

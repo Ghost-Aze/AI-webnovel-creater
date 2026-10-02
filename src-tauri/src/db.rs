@@ -33,6 +33,10 @@ const MIGRATIONS: &[Migration] = &[
         name: "0005_create_manuscripts.sql",
         sql: include_str!("../../migrations/0005_create_manuscripts.sql"),
     },
+    Migration {
+        name: "0006_manuscript_content_format.sql",
+        sql: include_str!("../../migrations/0006_manuscript_content_format.sql"),
+    },
 ];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;

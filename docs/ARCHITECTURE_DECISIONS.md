@@ -21,6 +21,7 @@ current Phase 1 implementation.
 - Phase 9 supplies a sequential Narrative Orchestrator. It creates deterministic quality-mode plans, routes each step, compiles scoped context and executes through the provider contract without writing canonical memory or adding chat UI.
 - Phase 10 supplies durable project-scoped Developer Chat conversations and a proposal-backed memory-tool boundary. Chat history is working context, not canonical memory; AI character changes remain draft proposals until explicit promotion.
 - Phase 11 supplies structured chapters, one-to-one manuscript documents, optimistic-concurrency saves, immutable manuscript snapshots and a focused plain-text editor route. Rich text, autosave, collaboration, sync and export remain separate phases.
+- Phase 12 adds an explicit manuscript content format, sanitized rich-text editing, debounce autosave and user-directed conflict resolution. Stale saves never retry silently; keeping local prose creates a new revision against the server base.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -78,6 +79,7 @@ current Phase 1 implementation.
 - Phase 9 adds typed logical-agent execution steps and temporary working-memory handoff. The orchestrator owns sequencing and provider invocation, while canonical memory writes remain outside the execution boundary.
 - Phase 10 adds ordered `Conversation`/`ConversationMessage` persistence and the `developer_chat_send`/`memory_tool_propose` command boundaries. User turns survive provider failures, while assistant turns are appended only after a successful run.
 - Phase 11 adds `Chapter`, `Manuscript` and `ManuscriptRevision` persistence. A manuscript save requires an expected revision and appends a snapshot; restore creates a new revision rather than rewriting history. This makes local editor updates safe without coupling prose to chat or provider execution.
+- Phase 12 adds `content_format` to manuscript and revision rows with a `plain_text` migration default. The client converts legacy text to safe HTML for editing and strips unsafe tags/attributes before saving; conflict actions remain explicit and local-first.
 
 ## Manuscript and chat
 

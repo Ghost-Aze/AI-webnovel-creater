@@ -1,7 +1,9 @@
 use webnovel_ai_studio_lib::{
     db,
     domain::{
-        manuscript::{ChapterListFilter, CreateChapterInput, SaveManuscriptInput},
+        manuscript::{
+            ChapterListFilter, CreateChapterInput, ManuscriptContentFormat, SaveManuscriptInput,
+        },
         project::CreateProjectInput,
     },
     error::AppError,
@@ -72,6 +74,7 @@ fn stale_manuscript_saves_are_rejected_without_losing_history() {
             &chapter.id,
             SaveManuscriptInput {
                 content: "First draft".to_string(),
+                content_format: Some(ManuscriptContentFormat::PlainText),
                 label: Some("Draft 2".to_string()),
                 actor_type: None,
                 actor_id: None,
@@ -85,6 +88,7 @@ fn stale_manuscript_saves_are_rejected_without_losing_history() {
                 &chapter.id,
                 SaveManuscriptInput {
                     content: "stale".to_string(),
+                    content_format: Some(ManuscriptContentFormat::PlainText),
                     label: None,
                     actor_type: None,
                     actor_id: None,
