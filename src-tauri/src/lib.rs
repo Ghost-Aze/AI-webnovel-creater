@@ -28,6 +28,7 @@ pub struct AppState {
     pub project_service: projects::service::ProjectService,
     pub provider_registry: provider::ProviderRegistry,
     pub provider_runtime: provider::ProviderRuntime,
+    pub provider_settings_repository: provider::ProviderSettingsRepository,
     pub revision_service: revisions::service::RevisionService,
     pub proposal_service: revisions::service::ProposalService,
     pub user_service: users::service::UserService,
@@ -98,6 +99,20 @@ pub fn run() {
             let provider_runtime =
                 provider::ProviderRuntime::new(provider::application_credential_store());
             let provider_registry = provider_runtime.registry();
+            let provider_settings_repository =
+                provider::ProviderSettingsRepository::new(database.clone());
+            for settings in provider_settings_repository
+                .list()
+                .map_err(|error| error.to_string())?
+            {
+                if let Err(error) = provider_runtime.restore(settings.clone()) {
+                    tracing::warn!(
+                        provider_id = %settings.descriptor.id,
+                        error = ?error,
+                        "stored provider was not activated"
+                    );
+                }
+            }
             let user_service = users::service::UserService::new(
                 users::repository::UserRepository::new(database.clone()),
             );
@@ -113,6 +128,7 @@ pub fn run() {
                 project_service: service,
                 provider_registry,
                 provider_runtime,
+                provider_settings_repository,
                 revision_service,
                 proposal_service,
                 user_service,
@@ -125,6 +141,7 @@ pub fn run() {
             commands::project_get,
             commands::project_update,
             commands::project_archive,
+            commands::project_delete,
             commands::user_profile_get,
             commands::user_profile_update,
             commands::user_preferences_get,
@@ -182,6 +199,9 @@ pub fn run() {
             commands::context_compile,
             commands::provider_generate,
             commands::provider_configure,
+            commands::provider_get,
+            commands::provider_update,
+            commands::provider_test,
             commands::provider_remove,
             commands::provider_credential_status
         ])

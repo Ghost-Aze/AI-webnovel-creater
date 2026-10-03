@@ -4,6 +4,7 @@ pub mod mock;
 pub mod registry;
 pub mod routing;
 pub mod runtime;
+pub mod settings;
 pub mod types;
 
 pub use error::{ProviderError, ProviderResult};
@@ -17,6 +18,7 @@ pub use runtime::{
     application_credential_store, credential_store_for, CredentialId, CredentialStore,
     CredentialStoreKind, CredentialStoreStatus, EphemeralCredentialStore,
     PlatformSecureCredentialStore, ProviderConfigureInput, ProviderConfigureResult,
-    ProviderRuntime, SecretValue,
+    ProviderRuntime, ProviderSettings, ProviderTestResult, ProviderUpdateInput, SecretValue,
 };
+pub use settings::ProviderSettingsRepository;
 pub use types::*;

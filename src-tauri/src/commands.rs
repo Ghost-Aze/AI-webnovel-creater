@@ -37,14 +37,15 @@ use crate::{
     domain::user::{
         UpdateUserPreferencesInput, UpdateUserProfileInput, UserPreferences, UserProfile,
     },
-    error::AppResult,
+    error::{AppError, AppResult},
     memory_tools::{MemoryToolRequest, MemoryToolService},
     orchestration::{NarrativeOrchestrator, OrchestrationRequest, OrchestrationResult},
     project_memory::service::ProjectMemoryService,
     provider::{
         CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile, ModelRouter,
         ProviderConfigureInput, ProviderConfigureResult, ProviderDescriptor, ProviderRegistry,
-        ProviderRuntime, RouteDecision, RoutingRequest,
+        ProviderRuntime, ProviderSettings, ProviderSettingsRepository, ProviderTestResult,
+        ProviderUpdateInput, RouteDecision, RoutingRequest,
     },
     revisions::service::ProposalService,
     revisions::service::RevisionService,
@@ -88,6 +89,13 @@ pub fn archive_project(
     id: String,
 ) -> AppResult<Project> {
     report("project_archive", service.archive(&id))
+}
+
+pub fn delete_project(
+    service: &crate::projects::service::ProjectService,
+    id: String,
+) -> AppResult<()> {
+    report("project_delete", service.delete(&id))
 }
 
 pub fn get_user_profile(service: &UserService) -> AppResult<UserProfile> {
@@ -545,6 +553,37 @@ pub fn list_providers(registry: &ProviderRegistry) -> AppResult<Vec<ProviderDesc
     )
 }
 
+pub fn list_persisted_providers(
+    _runtime: &ProviderRuntime,
+    settings: &ProviderSettingsRepository,
+) -> AppResult<Vec<ProviderDescriptor>> {
+    let values = settings.list()?;
+    report(
+        "provider_list",
+        Ok(values.into_iter().map(|value| value.descriptor).collect()),
+    )
+}
+
+pub fn get_provider_settings(
+    runtime: &ProviderRuntime,
+    provider_id: String,
+) -> AppResult<ProviderSettings> {
+    report(
+        "provider_get",
+        runtime.settings(&provider_id).map_err(Into::into),
+    )
+}
+
+pub fn get_persisted_provider_settings(
+    runtime: &ProviderRuntime,
+    settings: &ProviderSettingsRepository,
+    provider_id: String,
+) -> AppResult<ProviderSettings> {
+    runtime
+        .settings(&provider_id)
+        .or_else(|_| settings.get(&provider_id))
+}
+
 pub fn list_models(
     registry: &ProviderRegistry,
     provider_id: Option<String>,
@@ -665,6 +704,90 @@ pub fn configure_provider(
     )
 }
 
+pub fn configure_provider_persisted(
+    runtime: &ProviderRuntime,
+    settings: &ProviderSettingsRepository,
+    input: ProviderConfigureInput,
+) -> AppResult<ProviderConfigureResult> {
+    let provider_settings = ProviderSettings {
+        descriptor: input.descriptor.clone(),
+        base_url: input.base_url.clone(),
+        models: input.models.clone(),
+        credential_id: input.credential_id.clone(),
+    };
+    let result = configure_provider(runtime, input)?;
+    if let Err(error) = settings.save(&provider_settings) {
+        let _ = runtime.remove(&provider_settings.descriptor.id);
+        return Err(error);
+    }
+    Ok(result)
+}
+
+pub fn update_provider(
+    runtime: &ProviderRuntime,
+    input: ProviderUpdateInput,
+) -> AppResult<ProviderConfigureResult> {
+    report("provider_update", runtime.update(input).map_err(Into::into))
+}
+
+pub fn update_provider_persisted(
+    runtime: &ProviderRuntime,
+    settings: &ProviderSettingsRepository,
+    input: ProviderUpdateInput,
+) -> AppResult<ProviderConfigureResult> {
+    let previous = settings.get(&input.descriptor.id)?;
+    let next = ProviderSettings {
+        descriptor: input.descriptor.clone(),
+        base_url: input.base_url.clone(),
+        models: input.models.clone(),
+        credential_id: input.credential_id.clone(),
+    };
+    settings.save(&next)?;
+    match update_provider(runtime, input) {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            let _ = settings.save(&previous);
+            Err(error)
+        }
+    }
+}
+
+pub async fn test_provider(
+    registry: &ProviderRegistry,
+    provider_id: String,
+) -> AppResult<ProviderTestResult> {
+    let profile = registry
+        .list_models(Some(&provider_id))?
+        .into_iter()
+        .next()
+        .ok_or(crate::error::AppError::ModelNotFound)?;
+    let resolved = registry.resolve(&provider_id, &profile.model_id)?;
+    resolved
+        .provider
+        .generate(GenerateRequest {
+            model: crate::provider::ModelRef {
+                provider_id: provider_id.clone(),
+                model_id: profile.model_id.clone(),
+            },
+            messages: vec![crate::provider::PromptMessage {
+                role: crate::provider::PromptRole::User,
+                content: "Reply with OK to confirm this provider connection.".into(),
+            }],
+            max_output_tokens: profile.default_output_tokens.min(8),
+            temperature: Some(0.0),
+        })
+        .await
+        .map_err(crate::error::AppError::from)?;
+    report(
+        "provider_test",
+        Ok(ProviderTestResult {
+            provider_id,
+            model_id: profile.model_id,
+            message: "Connection successful.".into(),
+        }),
+    )
+}
+
 pub fn remove_provider(
     runtime: &ProviderRuntime,
     provider_id: String,
@@ -673,6 +796,23 @@ pub fn remove_provider(
         "provider_remove",
         runtime.remove(&provider_id).map_err(Into::into),
     )
+}
+
+pub fn remove_provider_persisted(
+    runtime: &ProviderRuntime,
+    settings: &ProviderSettingsRepository,
+    provider_id: String,
+) -> AppResult<ProviderDescriptor> {
+    let previous = settings.get(&provider_id)?;
+    settings.delete(&provider_id)?;
+    match remove_provider(runtime, provider_id) {
+        Ok(descriptor) => Ok(descriptor),
+        Err(AppError::ProviderNotFound) => Ok(previous.descriptor),
+        Err(error) => {
+            let _ = settings.save(&previous);
+            Err(error)
+        }
+    }
 }
 
 pub fn credential_store_status(runtime: &ProviderRuntime) -> CredentialStoreStatus {
@@ -726,6 +866,11 @@ mod tauri_commands {
     #[tauri::command]
     pub fn project_archive(state: State<'_, AppState>, id: String) -> AppResult<Project> {
         archive_project(&state.project_service, id)
+    }
+
+    #[tauri::command]
+    pub fn project_delete(state: State<'_, AppState>, id: String) -> AppResult<()> {
+        delete_project(&state.project_service, id)
     }
 
     #[tauri::command(rename_all = "snake_case")]
@@ -1187,7 +1332,19 @@ mod tauri_commands {
 
     #[tauri::command]
     pub fn provider_list(state: State<'_, AppState>) -> AppResult<Vec<ProviderDescriptor>> {
-        list_providers(&state.provider_registry)
+        list_persisted_providers(&state.provider_runtime, &state.provider_settings_repository)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn provider_get(
+        state: State<'_, AppState>,
+        provider_id: String,
+    ) -> AppResult<ProviderSettings> {
+        get_persisted_provider_settings(
+            &state.provider_runtime,
+            &state.provider_settings_repository,
+            provider_id,
+        )
     }
 
     #[tauri::command(rename_all = "snake_case")]
@@ -1246,7 +1403,31 @@ mod tauri_commands {
         state: State<'_, AppState>,
         input: ProviderConfigureInput,
     ) -> AppResult<ProviderConfigureResult> {
-        configure_provider(&state.provider_runtime, input)
+        configure_provider_persisted(
+            &state.provider_runtime,
+            &state.provider_settings_repository,
+            input,
+        )
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn provider_update(
+        state: State<'_, AppState>,
+        input: ProviderUpdateInput,
+    ) -> AppResult<ProviderConfigureResult> {
+        update_provider_persisted(
+            &state.provider_runtime,
+            &state.provider_settings_repository,
+            input,
+        )
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub async fn provider_test(
+        state: State<'_, AppState>,
+        provider_id: String,
+    ) -> AppResult<ProviderTestResult> {
+        test_provider(&state.provider_registry, provider_id).await
     }
 
     #[tauri::command(rename_all = "snake_case")]
@@ -1254,7 +1435,11 @@ mod tauri_commands {
         state: State<'_, AppState>,
         provider_id: String,
     ) -> AppResult<ProviderDescriptor> {
-        remove_provider(&state.provider_runtime, provider_id)
+        remove_provider_persisted(
+            &state.provider_runtime,
+            &state.provider_settings_repository,
+            provider_id,
+        )
     }
 
     #[tauri::command]
@@ -1292,7 +1477,7 @@ mod tests {
             EphemeralCredentialStore, GenerateRequest, MockProvider, ModelProfile, ModelRef,
             ModelTask, ModelTier, PromptMessage, PromptRole, ProviderCapabilities,
             ProviderConfigureInput, ProviderDescriptor, ProviderRegistry, ProviderRuntime,
-            QualityMode, RouteSelectionReason, RoutingRequest,
+            ProviderSettingsRepository, QualityMode, RouteSelectionReason, RoutingRequest,
         },
         revisions::{repository::RevisionRepository, service::RevisionService},
         users::{repository::UserRepository, service::UserService},
@@ -1517,6 +1702,36 @@ mod tests {
     }
 
     #[test]
+    fn provider_test_helper_returns_safe_connection_result() {
+        let registry = ProviderRegistry::new();
+        registry
+            .register(Arc::new(MockProvider::new(
+                ProviderDescriptor {
+                    id: "mock".into(),
+                    display_name: "Mock".into(),
+                },
+                vec![ModelProfile {
+                    provider_id: "mock".into(),
+                    model_id: "writer".into(),
+                    display_name: "Writer".into(),
+                    context_window_tokens: 4096,
+                    default_output_tokens: 512,
+                    strengths: Vec::new(),
+                    weaknesses: Vec::new(),
+                    strategy: Vec::new(),
+                    tier: ModelTier::Medium,
+                    capabilities: ProviderCapabilities::default(),
+                }],
+            )))
+            .unwrap();
+
+        let result = block_on(test_provider(&registry, "mock".into())).unwrap();
+        assert_eq!(result.provider_id, "mock");
+        assert_eq!(result.model_id, "writer");
+        assert_eq!(result.message, "Connection successful.");
+    }
+
+    #[test]
     fn orchestrator_helper_runs_typed_pipeline_without_memory_writes() {
         let registry = ProviderRegistry::new();
         registry
@@ -1667,6 +1882,48 @@ mod tests {
             "configured"
         );
         assert!(runtime.registry().list_providers().unwrap().is_empty());
+    }
+
+    #[test]
+    fn persisted_provider_commands_round_trip_metadata_and_remove_it() {
+        let connection = db::in_memory().unwrap();
+        let settings = ProviderSettingsRepository::new(connection);
+        let store = Arc::new(EphemeralCredentialStore::new());
+        let runtime = ProviderRuntime::new(store.clone());
+        let input = ProviderConfigureInput {
+            descriptor: ProviderDescriptor {
+                id: "persisted".into(),
+                display_name: "Persisted".into(),
+            },
+            base_url: "https://example.test/v1".into(),
+            models: vec![ModelProfile {
+                provider_id: "persisted".into(),
+                model_id: "writer".into(),
+                display_name: "Writer".into(),
+                context_window_tokens: 4096,
+                default_output_tokens: 512,
+                strengths: Vec::new(),
+                weaknesses: Vec::new(),
+                strategy: Vec::new(),
+                tier: ModelTier::Medium,
+                capabilities: ProviderCapabilities::default(),
+            }],
+            credential_id: "persisted-credential".into(),
+            credential_value: "persisted-secret".into(),
+        };
+        configure_provider_persisted(&runtime, &settings, input).unwrap();
+        assert_eq!(
+            list_persisted_providers(&runtime, &settings).unwrap()[0].id,
+            "persisted"
+        );
+
+        let restarted = ProviderRuntime::new(store);
+        let stored = settings.get("persisted").unwrap();
+        restarted.restore(stored).unwrap();
+        assert_eq!(restarted.registry().list_models(None).unwrap().len(), 1);
+
+        remove_provider_persisted(&restarted, &settings, "persisted".into()).unwrap();
+        assert_eq!(settings.list().unwrap(), Vec::new());
     }
 
     #[test]

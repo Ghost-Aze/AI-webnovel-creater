@@ -66,6 +66,9 @@ import type {
   ProviderConfigureInput,
   ProviderConfigureResult,
   ProviderDescriptor,
+  ProviderSettings,
+  ProviderTestResult,
+  ProviderUpdateInput,
   RouteDecision,
   RoutingRequest,
 } from "../types/provider";
@@ -110,6 +113,10 @@ export function updateProject(
 
 export function archiveProject(id: string): Promise<Project> {
   return call<Project>("project_archive", { id });
+}
+
+export function deleteProject(id: string): Promise<void> {
+  return call<void>("project_delete", { id });
 }
 
 export function getUserProfile(): Promise<UserProfile> {
@@ -563,6 +570,26 @@ export function configureProvider(
   input: ProviderConfigureInput,
 ): Promise<ProviderConfigureResult> {
   return call<ProviderConfigureResult>("provider_configure", { input });
+}
+
+export function getProviderSettings(
+  providerId: string,
+): Promise<ProviderSettings> {
+  return call<ProviderSettings>("provider_get", {
+    provider_id: providerId,
+  });
+}
+
+export function updateProvider(
+  input: ProviderUpdateInput,
+): Promise<ProviderConfigureResult> {
+  return call<ProviderConfigureResult>("provider_update", { input });
+}
+
+export function testProvider(providerId: string): Promise<ProviderTestResult> {
+  return call<ProviderTestResult>("provider_test", {
+    provider_id: providerId,
+  });
 }
 
 export function removeProvider(

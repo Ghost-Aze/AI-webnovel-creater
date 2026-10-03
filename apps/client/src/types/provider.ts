@@ -39,6 +39,7 @@ export type ModelTask =
   | "arc_planning"
   | "chapter_planning"
   | "scene_planning"
+  | "developer_chat"
   | "main_writing"
   | "character_psychology"
   | "major_revision"
@@ -105,6 +106,27 @@ export interface ProviderConfigureInput {
 export interface ProviderConfigureResult {
   descriptor: ProviderDescriptor;
   models: ModelProfile[];
+}
+
+export interface ProviderSettings {
+  descriptor: ProviderDescriptor;
+  base_url: string;
+  models: ModelProfile[];
+  credential_id: string;
+}
+
+export interface ProviderUpdateInput {
+  descriptor: ProviderDescriptor;
+  base_url: string;
+  models: ModelProfile[];
+  credential_id: string;
+  credential_value: string | null;
+}
+
+export interface ProviderTestResult {
+  provider_id: string;
+  model_id: string;
+  message: string;
 }
 
 export type CredentialStoreKind = "ephemeral" | "platform_secure";

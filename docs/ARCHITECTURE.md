@@ -29,7 +29,14 @@ migrations/                 ordered SQL files
 
 ## Command boundary
 
-The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`; Phase 13 adds `chapter_chat_send` and the `manuscript_proposal_*` lifecycle commands; Phase 14 adds `user_profile_get`, `user_profile_update`, `user_preferences_get` and `user_preferences_update` for the local singleton profile and global writing preferences. Phase 15 adds `story_fact_*` and `canon_rule_*` CRUD commands for typed project memory, plus explicit project-memory context references. Provider/model discovery, routing, context preview, Chapter Chat, proposal review and user preferences remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `archived_memory`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
+The project commands are `project_create`, `project_list`, `project_get`, `project_update`, `project_archive` and the explicit destructive `project_delete`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; the provider settings lifecycle adds `provider_get`, `provider_update` and `provider_test`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`; Phase 13 adds `chapter_chat_send` and the `manuscript_proposal_*` lifecycle commands; Phase 14 adds `user_profile_get`, `user_profile_update`, `user_preferences_get` and `user_preferences_update` for the local singleton profile and global writing preferences. Phase 15 adds `story_fact_*` and `canon_rule_*` CRUD commands for typed project memory, plus explicit project-memory context references. Provider/model discovery, routing, context preview, Chapter Chat, proposal review and user preferences remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `archived_memory`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
+
+Developer Chat and Chapter Chat expose a shared runtime control surface for
+assistant presets, quality mode and optional provider/model selection. The
+controls call the typed `model_list` boundary and pass `preferred_model`,
+`quality` and assistant instructions through the existing chat request. An
+empty model list deliberately falls back to provider-independent automatic
+routing; API keys never enter chat state.
 
 The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize the project, character and local user services in Tauri managed state over the same SQLite connection.
 
@@ -47,6 +54,11 @@ The Tauri feature is enabled only for the native shell. Headless tests compile t
 | `updated_at`  | UTC ISO-8601 text            |
 
 Active projects are listed by most recent `updated_at`. Archived projects are omitted by default and may be requested explicitly. Updates to archived projects are rejected. Archive is idempotent so a repeated action does not corrupt state.
+
+Deletion is a separate, explicit destructive operation. `project_delete` removes
+the project and all project-owned records through SQLite foreign-key cascades;
+the client requires a confirmation dialog before invoking it. Archive remains
+the non-destructive way to remove a project from the active list.
 
 `migrations/0001_create_projects.sql` creates the project table and an index. `migrations/0002_create_characters.sql` adds the `characters` table and the one-to-one `character_states` table. Character state is stored as named columns so each field remains queryable and independently updateable; it is not a JSON blob. `db::run_migrations` records each migration name in `_migrations` and skips it on later starts.
 
@@ -70,7 +82,8 @@ The command boundary exposes `memory_history_list`, `memory_restore`, `memory_se
 
 `src-tauri/src/provider` defines the provider-independent async `AIProvider`
 contract, capability metadata, runtime `ModelProfile` values and an in-memory
-`ProviderRegistry`. Profiles and credentials are not canonical SQLite data. The
+`ProviderRegistry`. Provider settings are structured application metadata rather
+than canonical project data, while credentials remain outside SQLite. The
 registry rejects duplicate provider/model identities and resolves a model before
 any future provider call. Streaming and embedding operations have typed
 unsupported-capability results; Phase 3 does not register a real network or
@@ -122,10 +135,9 @@ adapter or duplicate failure removes the temporary credential before returning.
 
 `provider_configure` and `provider_remove` expose this lifecycle through typed
 snake_case commands. Configure responses contain descriptors and model
-profiles only. Startup creates an empty runtime, and remove deletes both the
-provider registry entry and its credential reference. Windows Credential
-Manager, Android Keystore, provider settings UI and model routing are deferred
-until a platform secure-storage phase.
+profiles only. Remove deletes both the provider registry entry and its
+credential reference. The runtime keeps the provider-independent boundary while
+the settings repository owns non-canonical provider metadata.
 
 ## Phase 6 provider setup and credential boundary
 
@@ -160,9 +172,22 @@ are normalized to `secure_store_unavailable`, while a missing entry maps to
 `credential_not_found` without exposing keyring error text.
 
 The Tauri startup path selects native secure storage on Windows and Android and
-the deterministic process-only store elsewhere. Provider descriptors and model
-profiles are still process-local; persisting and restoring that metadata is a
-later phase, independent of the native secret storage boundary.
+the deterministic process-only store elsewhere. Provider descriptors, URLs,
+credential IDs and model profiles are persisted by migration
+`0010_provider_settings.sql`; API keys never enter those tables. Startup loads
+metadata and restores only providers whose credential is available in the
+selected secure store. A missing credential leaves the metadata editable while
+the provider remains inactive until the user supplies a key.
+
+Because provider registrations remain runtime-scoped, a credential left by an
+earlier native session is treated as stale when no active provider references
+its ID. Reconfiguring that ID replaces the stale secure entry; IDs referenced
+by an active provider remain protected from collision.
+
+The provider settings screen supports editing metadata without re-entering an
+existing key, explicit connection tests and removal. `provider_test` sends a
+small typed request through the selected model and returns only a safe success
+message; response text and credentials never cross the client boundary.
 
 ## Phase 8 model routing
 
@@ -204,6 +229,11 @@ with role/content and optional model metadata. The `developer_chat_send`
 command stores the user turn, passes only recent messages as temporary working
 memory to `NarrativeOrchestrator`, and stores the final assistant turn after a
 successful run. Provider failures never create a partial assistant message.
+
+Chat requests use the dedicated `DeveloperChat` model task. It preserves the
+same provider routing and context compilation boundary while executing one
+provider step per message; the multi-step `MainWriting` plans remain reserved
+for explicit writing workflows.
 
 `memory_tool_propose` is a typed character-update action that delegates to the
 existing `ProposalService` with `actor_type = ai`. It produces a draft proposal
@@ -320,7 +350,7 @@ behavior.
 
 ## UI shell
 
-`AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
+`AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states and exposes explicit edit/delete actions. `/projects/:projectId` handles project details, rename, archive and confirmed deletion. When a project route is active, Developer Chat and Manuscripts appear in a second project-scoped navigation group. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 

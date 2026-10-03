@@ -33,7 +33,7 @@ fn migration_is_idempotent_and_preserves_data() {
             .unwrap()
             .query_row::<i64, _, _>("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0),)
             .unwrap(),
-        9
+        10
     );
 
     let connection = connection.lock().unwrap();
@@ -80,6 +80,10 @@ fn migration_is_idempotent_and_preserves_data() {
         .is_ok());
     assert!(connection
         .query_row::<i64, _, _>("SELECT COUNT(*) FROM manuscript_proposals", [], |row| row
+            .get(0),)
+        .is_ok());
+    assert!(connection
+        .query_row::<i64, _, _>("SELECT COUNT(*) FROM provider_settings", [], |row| row
             .get(0),)
         .is_ok());
     let manuscript_columns: Vec<String> = connection
@@ -134,6 +138,68 @@ fn project_lifecycle_supports_create_get_update_and_archive() {
     assert_eq!(archived.status, ProjectStatus::Archived);
     assert_eq!(project_service.get(&created.id).unwrap(), archived);
     assert_eq!(project_service.archive(&created.id).unwrap(), archived);
+}
+
+#[test]
+fn deleting_project_removes_project_and_owned_records() {
+    let connection = db::in_memory().expect("database should initialize");
+    let project_service = ProjectService::new(ProjectRepository::new(connection.clone()));
+    let project = project_service
+        .create(CreateProjectInput {
+            name: "Disposable project".to_string(),
+            description: None,
+        })
+        .unwrap();
+
+    let connection_guard = connection.lock().unwrap();
+    connection_guard
+        .execute(
+            "INSERT INTO characters
+             (id, project_id, name, summary, role, status, created_at, updated_at, revision, canon_status)
+             VALUES ('character-1', ?1, 'Mira', '', '', 'active', '2026-10-01', '2026-10-01', 1, 'canon')",
+            [&project.id],
+        )
+        .unwrap();
+    connection_guard
+        .execute(
+            "INSERT INTO conversations
+             (id, project_id, kind, title, created_at, updated_at)
+             VALUES ('conversation-1', ?1, 'developer_chat', 'Developer Chat', '2026-10-01', '2026-10-01')",
+            [&project.id],
+        )
+        .unwrap();
+    connection_guard
+        .execute(
+            "INSERT INTO chapters
+             (id, project_id, number, title, synopsis, status, revision, created_at, updated_at)
+             VALUES ('chapter-1', ?1, 1, 'Opening', '', 'draft', 1, '2026-10-01', '2026-10-01')",
+            [&project.id],
+        )
+        .unwrap();
+    connection_guard
+        .execute(
+            "INSERT INTO story_facts
+             (id, project_id, title, content, status, canon_status, revision, created_at, updated_at)
+             VALUES ('fact-1', ?1, 'Dawn', 'The bells ring.', 'active', 'canon', 1, '2026-10-01', '2026-10-01')",
+            [&project.id],
+        )
+        .unwrap();
+    drop(connection_guard);
+
+    project_service.delete(&project.id).unwrap();
+
+    assert_eq!(project_service.get(&project.id), Err(AppError::NotFound));
+    let connection_guard = connection.lock().unwrap();
+    for table in ["characters", "conversations", "chapters", "story_facts"] {
+        let count: i64 = connection_guard
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE project_id = ?1"),
+                [&project.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0, "owned rows should be deleted from {table}");
+    }
 }
 
 #[test]

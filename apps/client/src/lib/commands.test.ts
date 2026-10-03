@@ -19,6 +19,7 @@ import {
   createChapter,
   createManuscriptProposal,
   createProject,
+  deleteProject,
   createStoryFact,
   compileContext,
   configureProvider,
@@ -29,6 +30,7 @@ import {
   getCanonRule,
   getManuscript,
   getProject,
+  getProviderSettings,
   getStoryFact,
   getUserPreferences,
   getUserProfile,
@@ -59,6 +61,8 @@ import {
   updateStoryFact,
   updateUserPreferences,
   updateUserProfile,
+  updateProvider,
+  testProvider,
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
@@ -71,6 +75,7 @@ import type { OrchestrationRequest } from "../types/orchestration";
 import type {
   GenerateRequest,
   ProviderConfigureInput,
+  ProviderUpdateInput,
   RoutingRequest,
 } from "../types/provider";
 import type {
@@ -95,6 +100,15 @@ describe("typed project commands", () => {
     );
     expect(invokeMock).toHaveBeenCalledWith("project_create", {
       input: { name: "A project" },
+    });
+  });
+
+  it("deletes a project through the typed command boundary", async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await expect(deleteProject("project-id")).resolves.toBeUndefined();
+    expect(invokeMock).toHaveBeenCalledWith("project_delete", {
+      id: "project-id",
     });
   });
 
@@ -361,6 +375,7 @@ describe("typed project commands", () => {
       },
       message: "Draft the next scene.",
       temperature: 0.4,
+      retry_attempt: false,
     };
     invokeMock.mockResolvedValueOnce({});
     await sendDeveloperChat(chatRequest);
@@ -672,4 +687,49 @@ describe("typed project commands", () => {
       {},
     );
   });
+
+  it("uses typed provider editing, settings and connection-test payloads", async () => {
+    const settings = {
+      descriptor: inputDescriptor(),
+      base_url: "https://example.test/v1",
+      models: [],
+      credential_id: "session-key",
+    };
+    invokeMock.mockResolvedValueOnce(settings);
+    await expect(getProviderSettings("openai-compatible")).resolves.toEqual(
+      settings,
+    );
+    expect(invokeMock).toHaveBeenCalledWith("provider_get", {
+      provider_id: "openai-compatible",
+    });
+
+    const update: ProviderUpdateInput = {
+      descriptor: inputDescriptor(),
+      base_url: "https://updated.example.test/v1",
+      models: [],
+      credential_id: "session-key",
+      credential_value: null,
+    };
+    invokeMock.mockResolvedValueOnce({ descriptor: update.descriptor, models: [] });
+    await updateProvider(update);
+    expect(invokeMock).toHaveBeenCalledWith("provider_update", { input: update });
+
+    const testResult = {
+      provider_id: "openai-compatible",
+      model_id: "mock-small",
+      message: "Connection successful.",
+    };
+    invokeMock.mockResolvedValueOnce(testResult);
+    await expect(testProvider("openai-compatible")).resolves.toEqual(testResult);
+    expect(invokeMock).toHaveBeenCalledWith("provider_test", {
+      provider_id: "openai-compatible",
+    });
+  });
 });
+
+function inputDescriptor() {
+  return {
+    id: "openai-compatible",
+    display_name: "OpenAI-compatible",
+  };
+}

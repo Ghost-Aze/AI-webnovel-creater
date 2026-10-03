@@ -14,6 +14,18 @@ pub enum ProviderError {
     InvalidRequest,
     #[error("provider operation failed")]
     ProviderFailure,
+    #[error("provider credentials were rejected")]
+    Unauthorized,
+    #[error("provider endpoint or model was not found")]
+    EndpointNotFound,
+    #[error("provider rate limit was reached")]
+    RateLimited,
+    #[error("provider is temporarily unavailable")]
+    Unavailable,
+    #[error("provider request timed out")]
+    Timeout,
+    #[error("provider could not be reached")]
+    NetworkFailure,
     #[error("provider credential was not found")]
     CredentialNotFound,
     #[error("provider credential is already registered")]
@@ -48,5 +60,24 @@ mod tests {
             capability: "streaming".into(),
         });
         assert_eq!(error.unwrap_err().code(), "unsupported_capability");
+    }
+
+    #[test]
+    fn maps_classified_provider_failures_to_safe_application_codes() {
+        let cases = [
+            (ProviderError::Unauthorized, "provider_unauthorized"),
+            (
+                ProviderError::EndpointNotFound,
+                "provider_endpoint_not_found",
+            ),
+            (ProviderError::RateLimited, "provider_rate_limited"),
+            (ProviderError::Unavailable, "provider_unavailable"),
+            (ProviderError::Timeout, "provider_timeout"),
+            (ProviderError::NetworkFailure, "provider_network_failure"),
+        ];
+
+        for (provider_error, code) in cases {
+            assert_eq!(safe_error(provider_error).unwrap_err().code(), code);
+        }
     }
 }

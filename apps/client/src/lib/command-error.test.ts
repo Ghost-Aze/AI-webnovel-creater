@@ -24,4 +24,39 @@ describe("provider command errors", () => {
     expect(error).toMatchObject({ code, message });
     expect(error.message).not.toContain("secret prompt");
   });
+
+  it.each([
+    ["provider_unauthorized", "provider_settings", false],
+    ["provider_endpoint_not_found", "provider_settings", false],
+    ["secure_store_unavailable", "provider_settings", false],
+    ["provider_rate_limited", "retry", true],
+    ["provider_unavailable", "retry", true],
+    ["provider_timeout", "retry", true],
+    ["provider_network_failure", "retry", true],
+  ] as const)(
+    "exposes safe recovery metadata for %s",
+    (code, action, retryable) => {
+      const error = normalizeCommandError({
+        code,
+        details: { raw: "Bearer secret prompt" },
+      });
+      expect(error).toMatchObject({ code, action, retryable });
+      expect(error.message).not.toContain("Bearer");
+      expect(error.message).not.toContain("secret prompt");
+    },
+  );
+
+  it("keeps unknown provider details non-retryable and generic", () => {
+    const error = normalizeCommandError({
+      code: "provider_unknown",
+      details: { body: "secret provider response" },
+    });
+
+    expect(error).toMatchObject({
+      code: "internal",
+      action: null,
+      retryable: false,
+    });
+    expect(error.message).not.toContain("secret provider response");
+  });
 });

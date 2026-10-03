@@ -24,6 +24,9 @@ documents are under `docs/superpowers/`.
 - Phase 0 through Phase 14 are implemented slices. Phase 14 adds the local
   user profile and global writing-preferences foundation; it does not add
   authentication, sync or a settings UI.
+- Project list actions now expose explicit edit navigation and confirmed hard
+  deletion. `project_delete` cascades project-owned SQLite records; archive
+  remains the non-destructive alternative.
 
 ## Phase 13 decisions
 
@@ -33,6 +36,10 @@ documents are under `docs/superpowers/`.
 - `chapter_chat_send` reuses the provider-independent orchestrator. It passes
   bounded conversation history and the current manuscript as transient working
   memory. It never writes the canonical manuscript automatically.
+- Developer and Chapter Chat requests use the dedicated `developer_chat` model
+  task, which executes one provider step per message instead of the multi-step
+  `main_writing` orchestration plan. This keeps chat responsive while retaining
+  the same routing and context boundaries.
 - `ManuscriptProposal` stores a complete proposed body with `draft`, `accepted`
   or `rejected` status and a `base_revision`.
 - Promotion is explicit. One SQLite transaction checks the chapter/project and
@@ -40,6 +47,17 @@ documents are under `docs/superpowers/`.
   accepts the proposal. A stale base returns `conflict`.
 - The React editor exposes Chapter Chat plus review controls. Proposal content
   is currently a complete plain-text body; line-level diff/merge is deferred.
+- Developer Chat and Chapter Chat now share runtime controls for assistant
+  presets, quality mode and optional provider/model selection. These controls
+  use `model_list` and the existing typed chat request; no provider credential
+  is copied into chat state. With no configured models, automatic routing stays
+  available and the UI links to provider setup.
+- Provider setup now supports editing provider metadata, explicit connection
+  tests and removal. Migration `0010_provider_settings.sql` persists provider
+  descriptors, endpoints, credential IDs and model profiles without storing
+  API keys. Native startup restores only providers whose credentials are
+  available in the platform secure store; missing credentials remain editable
+  but inactive until the user supplies a new key.
 
 ## Phase 14 decisions
 
@@ -52,7 +70,8 @@ documents are under `docs/superpowers/`.
   typed profile/preferences commands while SQL, SQLite booleans and storage
   errors remain inside Rust.
 - Authentication, cloud sync, multi-user access, project-level overrides,
-  provider settings and a visual settings screen remain deferred.
+  project-level provider overrides and a visual settings redesign remain
+  deferred.
 
 ## Phase 15 decisions
 
@@ -79,10 +98,10 @@ documents are under `docs/superpowers/`.
 
 The current Phase 15 baseline is:
 
-- Rust: 100 unit tests plus 22 integration tests pass.
+- Rust: 108 unit tests plus 34 integration tests pass.
 - Rust `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
   pass.
-- Frontend: 64 Vitest tests across 16 files pass.
+- Frontend: 75 Vitest tests across 17 files pass.
 - Frontend typecheck, ESLint and production build pass. The repository-wide
   Prettier check still reports existing formatting drift across the client and
   is not part of the required source verification gate.

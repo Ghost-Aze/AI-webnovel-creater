@@ -11,6 +11,7 @@ current Phase 1 implementation.
 ## Product boundary
 
 - Phase 0 establishes the Tauri, React, Rust, SQLite and project workspace foundation.
+- Project deletion is an explicit user-confirmed hard delete. SQLite foreign-key cascades remove project-owned records, while archive remains the non-destructive list action.
 - Phase 1 establishes structured `Character` and `CharacterState` memory.
 - Phase 3 establishes provider-independent capability contracts, runtime model profiles, an in-memory registry and a deterministic structured-memory Context Compiler. It does not connect a provider.
 - Phase 4 establishes one OpenAI-compatible HTTP adapter, an injected transport boundary, SSE streaming parsing and a typed provider-generate command. It does not persist credentials or add provider settings UI.
@@ -77,6 +78,7 @@ current Phase 1 implementation.
 - `ProviderRuntime` owns the shared registry and a `CredentialStore`. Phase 5's `EphemeralCredentialStore` is intentionally cleared on restart and is only a bridge to platform backends. Configure failures roll back the credential and registry mapping; remove deletes both runtime entries.
 - Phase 6 exposes `CredentialStoreKind` and `provider_credential_status` without returning secrets. The provider settings form uses typed configure/remove commands, validates model budget metadata locally, and clears the API-key input after a successful submission.
 - Phase 7's `PlatformSecureCredentialStore` delegates to Windows Credential Manager or the Android-native Keystore-backed store behind a target-specific Rust boundary. Initialization and platform failures are normalized to typed availability/errors; missing entries map to `credential_not_found`, and no raw keyring detail or plaintext fallback is exposed.
+- Native provider registrations are runtime-scoped. When a persistent credential ID has no active runtime reference after restart, a new explicit provider configuration may replace that stale entry; a credential ID referenced by an active provider still returns a collision.
 - Phase 8 adds `ModelTier`, `ModelTask`, `QualityMode` and deterministic capability/context-aware routing. Explicit user model choices remain authoritative when valid, and no suitable candidate returns a safe typed error rather than silently selecting an incompatible model.
 - Phase 9 adds typed logical-agent execution steps and temporary working-memory handoff. The orchestrator owns sequencing and provider invocation, while canonical memory writes remain outside the execution boundary.
 - Phase 10 adds ordered `Conversation`/`ConversationMessage` persistence and the `developer_chat_send`/`memory_tool_propose` command boundaries. User turns survive provider failures, while assistant turns are appended only after a successful run.

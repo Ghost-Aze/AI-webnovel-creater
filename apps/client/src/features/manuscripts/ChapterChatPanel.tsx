@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { normalizeCommandError } from "../../lib/command-error";
+import { normalizeCommandError, type CommandError } from "../../lib/command-error";
 import {
   chapterChatSend,
   createConversation,
@@ -8,11 +8,17 @@ import {
   listConversationMessages,
   listConversations,
 } from "../../lib/commands";
+import { ChatComposer, type ChatComposerProps } from "../chat/ChatComposer";
+import { ChatEmptyState } from "../chat/ChatEmptyState";
+import { ChatErrorBanner } from "../chat/ChatErrorBanner";
+import { ChatHeader } from "../chat/ChatHeader";
+import { ChatMessageList } from "../chat/ChatMessageList";
 import type {
   Conversation,
   ConversationMessage,
   DeveloperChatSendRequest,
 } from "../../types/conversation";
+import type { ModelRef, QualityMode } from "../../types/provider";
 
 interface ChapterChatPanelProps {
   projectId: string;
@@ -31,6 +37,30 @@ const emptyCapabilities = {
   prompt_caching: false,
 };
 
+const chapterAssistants = [
+  {
+    id: "chapter-editor",
+    label: "Chapter editor",
+    description: "Shape the chapter while preserving its current intent.",
+    systemInstructions:
+      "You are the Chapter Chat assistant. Discuss and propose manuscript changes without changing canonical data automatically.",
+  },
+  {
+    id: "continuity-reviewer",
+    label: "Continuity reviewer",
+    description: "Check the chapter against the project's established canon.",
+    systemInstructions:
+      "You are the Chapter Chat continuity reviewer. Check the current chapter against the project's canon, then discuss and propose manuscript changes without changing canonical data automatically.",
+  },
+  {
+    id: "scene-coach",
+    label: "Scene coach",
+    description: "Improve tension, pacing and scene-level choices.",
+    systemInstructions:
+      "You are the Chapter Chat scene coach. Give concrete guidance on tension, pacing and scene craft without changing canonical data automatically.",
+  },
+] as const;
+
 export function ChapterChatPanel({
   projectId,
   chapterId,
@@ -44,8 +74,14 @@ export function ChapterChatPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<CommandError | null>(null);
+  const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const [proposalId, setProposalId] = useState<string | null>(null);
+  const [selectedAssistantId, setSelectedAssistantId] = useState<string>(
+    chapterAssistants[0].id,
+  );
+  const [selectedModel, setSelectedModel] = useState<ModelRef | null>(null);
+  const [quality, setQuality] = useState<QualityMode>("balanced");
 
   const loadChat = useCallback(async () => {
     setIsLoading(true);
@@ -85,21 +121,24 @@ export function ChapterChatPanel({
     void loadChat();
   }, [loadChat]);
 
-  async function handleSend() {
-    const message = draft.trim();
+  async function handleSend(retryAttempt = false) {
+    const message = (retryAttempt ? failedMessage ?? draft : draft).trim();
     if (!conversation || !message || disabled) return;
     setIsSending(true);
     setError(null);
     try {
+      const assistant =
+        chapterAssistants.find(
+          (preset) => preset.id === selectedAssistantId,
+        ) ?? chapterAssistants[0];
       const request: DeveloperChatSendRequest = {
         conversation_id: conversation.id,
-        task: "main_writing",
-        quality: "balanced",
-        preferred_model: null,
+        task: "developer_chat",
+        quality,
+        preferred_model: selectedModel,
         required_capabilities: emptyCapabilities,
         minimum_context_window_tokens: null,
-        system_instructions:
-          "You are the Chapter Chat assistant. Discuss and propose manuscript changes without changing canonical data automatically.",
+        system_instructions: assistant.systemInstructions,
         character_ids: [],
         include_character_states: false,
         context_budget: {
@@ -108,6 +147,7 @@ export function ChapterChatPanel({
         },
         message,
         temperature: null,
+        retry_attempt: retryAttempt,
       };
       const result = await chapterChatSend(chapterId, request);
       setMessages((current) => [
@@ -116,8 +156,11 @@ export function ChapterChatPanel({
         result.assistant_message,
       ]);
       setDraft("");
+      setFailedMessage(null);
     } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
+      const normalized = normalizeCommandError(commandError);
+      setError(normalized);
+      setFailedMessage(normalized.retryable ? message : null);
     } finally {
       setIsSending(false);
     }
@@ -139,9 +182,26 @@ export function ChapterChatPanel({
       setProposalId(proposal.id);
       onProposalCreated?.();
     } catch (commandError) {
-      setError(normalizeCommandError(commandError).message);
+      setError(normalizeCommandError(commandError));
     }
   }
+
+  const composerProps: ChatComposerProps = {
+    draft,
+    onDraftChange: setDraft,
+    onSubmit: () => void handleSend(),
+    isSending,
+    disabled: disabled || isLoading,
+    assistants: chapterAssistants,
+    selectedAssistantId,
+    onAssistantChange: setSelectedAssistantId,
+    selectedModel,
+    onModelChange: setSelectedModel,
+    quality,
+    onQualityChange: setQuality,
+    placeholder: "Ask about this chapter…",
+    messageLabel: "Chapter Chat message",
+  };
 
   return (
     <section
@@ -170,55 +230,49 @@ export function ChapterChatPanel({
           </button>
         </div>
       ) : (
-        <>
-          <div className="chapter-chat-messages" aria-live="polite">
-            {messages.length === 0 && (
-              <p className="empty-state">Ask for a scene idea or revision.</p>
-            )}
-            {messages.map((message) => (
-              <article
-                className={`chapter-chat-message message-${message.role}`}
-                key={message.id}
-              >
-                <small>{message.role}</small>
-                <p>{message.content}</p>
-                {message.role === "assistant" && message.content.trim() && (
-                  <button
-                    className="button button-ghost button-small"
-                    type="button"
-                    onClick={() => void handlePropose(message.content)}
-                    disabled={disabled}
-                  >
-                    Propose revision
-                  </button>
-                )}
-              </article>
-            ))}
-          </div>
-          <div className="chapter-chat-composer">
-            <textarea
-              aria-label="Chapter Chat message"
-              rows={3}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              disabled={disabled || isSending}
-              placeholder="Ask about this chapter…"
+        messages.length === 0 ? (
+          <>
+            <ChatEmptyState
+              title="How can I help you today?"
+              description="Ask for a scene idea or revision."
+              composerProps={composerProps}
             />
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={disabled || isSending || !draft.trim()}
-            >
-              {isSending ? "Sending…" : "Send"}
-            </button>
+            {error && (
+              <ChatErrorBanner
+                error={error}
+                onRetry={() => void handleSend(true)}
+              />
+            )}
+          </>
+        ) : (
+          <div className="chat-active-surface">
+            <ChatHeader
+              scopeTitle="Chapter Chat"
+              selectedModel={selectedModel}
+            />
+            <ChatMessageList
+              messages={messages}
+              onAssistantAction={(message) => void handlePropose(message.content)}
+              assistantActionLabel="Propose revision"
+              disabled={disabled}
+            />
+            {disabled ? (
+              <p className="chat-readonly-note">
+                Archived chapters can be viewed but cannot receive new messages.
+              </p>
+            ) : (
+              <div className="chat-composer-dock">
+                <ChatComposer {...composerProps} />
+              </div>
+            )}
+            {error && (
+              <ChatErrorBanner
+                error={error}
+                onRetry={() => void handleSend(true)}
+              />
+            )}
           </div>
-        </>
-      )}
-      {error && !loadError && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        )
       )}
     </section>
   );

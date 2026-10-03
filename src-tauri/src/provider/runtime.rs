@@ -185,6 +185,43 @@ pub struct ProviderConfigureInput {
     pub credential_value: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderSettings {
+    pub descriptor: ProviderDescriptor,
+    pub base_url: String,
+    pub models: Vec<ModelProfile>,
+    pub credential_id: String,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct ProviderUpdateInput {
+    pub descriptor: ProviderDescriptor,
+    pub base_url: String,
+    pub models: Vec<ModelProfile>,
+    pub credential_id: String,
+    pub credential_value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderTestResult {
+    pub provider_id: String,
+    pub model_id: String,
+    pub message: String,
+}
+
+impl fmt::Debug for ProviderUpdateInput {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ProviderUpdateInput")
+            .field("descriptor", &self.descriptor)
+            .field("base_url", &"<redacted>")
+            .field("model_count", &self.models.len())
+            .field("credential_id", &"<redacted>")
+            .field("credential_value", &"<redacted>")
+            .finish()
+    }
+}
+
 impl fmt::Debug for ProviderConfigureInput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -209,6 +246,7 @@ pub struct ProviderRuntime {
     registry: ProviderRegistry,
     credentials: Arc<dyn CredentialStore>,
     credential_refs: Arc<RwLock<BTreeMap<String, CredentialId>>>,
+    configurations: Arc<RwLock<BTreeMap<String, ProviderSettings>>>,
     lifecycle: Arc<Mutex<()>>,
 }
 
@@ -218,6 +256,7 @@ impl ProviderRuntime {
             registry: ProviderRegistry::new(),
             credentials,
             credential_refs: Arc::new(RwLock::new(BTreeMap::new())),
+            configurations: Arc::new(RwLock::new(BTreeMap::new())),
             lifecycle: Arc::new(Mutex::new(())),
         }
     }
@@ -228,6 +267,99 @@ impl ProviderRuntime {
 
     pub fn credential_store_status(&self) -> CredentialStoreStatus {
         self.credentials.status()
+    }
+
+    pub fn settings(&self, provider_id: &str) -> ProviderResult<ProviderSettings> {
+        self.configurations
+            .read()
+            .map_err(|_| ProviderError::ProviderFailure)?
+            .get(provider_id)
+            .cloned()
+            .ok_or(ProviderError::ProviderNotFound)
+    }
+
+    pub fn settings_list(&self) -> ProviderResult<Vec<ProviderSettings>> {
+        Ok(self
+            .configurations
+            .read()
+            .map_err(|_| ProviderError::ProviderFailure)?
+            .values()
+            .cloned()
+            .collect())
+    }
+
+    pub fn remember_settings(&self, settings: ProviderSettings) -> ProviderResult<()> {
+        if settings.descriptor.id.trim().is_empty()
+            || settings.descriptor.display_name.trim().is_empty()
+            || settings.base_url.trim().is_empty()
+            || settings.credential_id.trim().is_empty()
+        {
+            return Err(ProviderError::InvalidRequest);
+        }
+        for model in &settings.models {
+            model.validate()?;
+        }
+        self.configurations
+            .write()
+            .map_err(|_| ProviderError::ProviderFailure)?
+            .insert(settings.descriptor.id.clone(), settings);
+        Ok(())
+    }
+
+    pub fn restore(&self, settings: ProviderSettings) -> ProviderResult<()> {
+        self.remember_settings(settings.clone())?;
+        let credential_id = CredentialId::new(settings.credential_id.clone())?;
+        let secret = self.credentials.get(&credential_id)?;
+        let provider = OpenAiCompatibleProvider::new(
+            settings.descriptor.clone(),
+            settings.models,
+            settings.base_url,
+            Some(secret.expose().to_string()),
+        )
+        .map(Arc::new)?;
+        self.registry.register(provider)?;
+        self.credential_refs
+            .write()
+            .map_err(|_| ProviderError::ProviderFailure)?
+            .insert(settings.descriptor.id, credential_id);
+        Ok(())
+    }
+
+    fn write_credential(
+        &self,
+        id: &CredentialId,
+        value: SecretValue,
+    ) -> ProviderResult<Option<SecretValue>> {
+        match self.credentials.put(id, value.clone()) {
+            Ok(()) => Ok(None),
+            Err(ProviderError::CredentialAlreadyRegistered) => {
+                let is_active = self
+                    .credential_refs
+                    .read()
+                    .map_err(|_| ProviderError::ProviderFailure)?
+                    .values()
+                    .any(|active_id| active_id == id);
+                if is_active {
+                    return Err(ProviderError::CredentialAlreadyRegistered);
+                }
+
+                let previous = self.credentials.get(id)?;
+                self.credentials.delete(id)?;
+                if let Err(error) = self.credentials.put(id, value) {
+                    let _ = self.credentials.put(id, previous.clone());
+                    return Err(error);
+                }
+                Ok(Some(previous))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn rollback_credential(&self, id: &CredentialId, previous: Option<SecretValue>) {
+        let _ = self.credentials.delete(id);
+        if let Some(previous) = previous {
+            let _ = self.credentials.put(id, previous);
+        }
     }
 
     pub fn configure(
@@ -250,18 +382,20 @@ impl ProviderRuntime {
         if self.registry.contains(&provider_id)? {
             return Err(ProviderError::ProviderAlreadyRegistered);
         }
-        let credential_id = CredentialId::new(input.credential_id)?;
+        let credential_id_text = input.credential_id.clone();
+        let base_url = input.base_url.clone();
+        let credential_id = CredentialId::new(credential_id_text.clone())?;
         let secret = SecretValue::new(input.credential_value)?;
         let provider = OpenAiCompatibleProvider::new(
             input.descriptor.clone(),
             input.models.clone(),
-            input.base_url,
+            base_url.clone(),
             Some(secret.expose().to_string()),
         )
         .map(Arc::new)?;
-        self.credentials.put(&credential_id, secret)?;
+        let previous_credential = self.write_credential(&credential_id, secret)?;
         if let Err(error) = self.registry.register(provider) {
-            self.credentials.delete(&credential_id)?;
+            self.rollback_credential(&credential_id, previous_credential);
             return Err(error);
         }
         if let Err(error) = self
@@ -271,8 +405,138 @@ impl ProviderRuntime {
             .map(|mut refs| refs.insert(provider_id.clone(), credential_id.clone()))
         {
             let _ = self.registry.unregister(&provider_id);
-            let _ = self.credentials.delete(&credential_id);
+            self.rollback_credential(&credential_id, previous_credential);
             return Err(error);
+        }
+        if let Err(error) = self
+            .configurations
+            .write()
+            .map_err(|_| ProviderError::ProviderFailure)
+            .map(|mut configurations| {
+                configurations.insert(
+                    provider_id,
+                    ProviderSettings {
+                        descriptor: input.descriptor.clone(),
+                        base_url,
+                        models: input.models.clone(),
+                        credential_id: credential_id_text,
+                    },
+                )
+            })
+        {
+            let _ = self
+                .credential_refs
+                .write()
+                .map(|mut refs| refs.remove(&input.descriptor.id));
+            let _ = self.registry.unregister(&input.descriptor.id);
+            self.rollback_credential(&credential_id, previous_credential);
+            return Err(error);
+        }
+        Ok(ProviderConfigureResult {
+            descriptor: input.descriptor,
+            models: input.models,
+        })
+    }
+
+    pub fn update(&self, input: ProviderUpdateInput) -> ProviderResult<ProviderConfigureResult> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| ProviderError::ProviderFailure)?;
+        let current = self.settings(&input.descriptor.id)?;
+        if input.credential_id.trim() != current.credential_id.trim() {
+            return Err(ProviderError::InvalidRequest);
+        }
+        let credential_id = CredentialId::new(current.credential_id.clone())?;
+        let existing_secret = match self.credentials.get(&credential_id) {
+            Ok(secret) => Some(secret),
+            Err(ProviderError::CredentialNotFound) if input.credential_value.is_some() => None,
+            Err(error) => return Err(error),
+        };
+        let replacement_secret = match input.credential_value.as_ref() {
+            Some(value) => SecretValue::new(value.clone())?,
+            None => existing_secret
+                .clone()
+                .ok_or(ProviderError::CredentialNotFound)?,
+        };
+        let provider = OpenAiCompatibleProvider::new(
+            input.descriptor.clone(),
+            input.models.clone(),
+            input.base_url.clone(),
+            Some(replacement_secret.expose().to_string()),
+        )
+        .map(Arc::new)?;
+
+        let secret_changed = input.credential_value.is_some();
+        let was_active = self.registry.contains(&input.descriptor.id)?;
+        let previous_secret = if secret_changed && was_active {
+            if let Some(existing_secret) = &existing_secret {
+                self.credentials.delete(&credential_id)?;
+                Some(existing_secret.clone())
+            } else {
+                None
+            }
+        } else if secret_changed {
+            self.write_credential(&credential_id, replacement_secret.clone())?
+        } else {
+            None
+        };
+        if secret_changed && was_active {
+            if let Err(error) = self.credentials.put(&credential_id, replacement_secret) {
+                self.rollback_credential(&credential_id, previous_secret);
+                return Err(error);
+            }
+        }
+        let previous_provider = if was_active {
+            match self.registry.replace(provider) {
+                Ok(previous) => Some(previous),
+                Err(error) => {
+                    if secret_changed {
+                        self.rollback_credential(&credential_id, previous_secret);
+                    }
+                    return Err(error);
+                }
+            }
+        } else {
+            if let Err(error) = self.registry.register(provider) {
+                if secret_changed {
+                    self.rollback_credential(&credential_id, previous_secret);
+                }
+                return Err(error);
+            }
+            None
+        };
+        if let Err(error) = self
+            .configurations
+            .write()
+            .map_err(|_| ProviderError::ProviderFailure)
+            .map(|mut configurations| {
+                configurations.insert(
+                    input.descriptor.id.clone(),
+                    ProviderSettings {
+                        descriptor: input.descriptor.clone(),
+                        base_url: input.base_url.clone(),
+                        models: input.models.clone(),
+                        credential_id: current.credential_id.clone(),
+                    },
+                )
+            })
+        {
+            if let Some(previous_provider) = previous_provider {
+                let _ = self.registry.replace(previous_provider);
+            } else {
+                let _ = self.registry.unregister(&input.descriptor.id);
+            }
+            if secret_changed {
+                self.rollback_credential(&credential_id, previous_secret);
+            }
+            return Err(error);
+        }
+        if !was_active {
+            self.credential_refs
+                .write()
+                .map_err(|_| ProviderError::ProviderFailure)?
+                .insert(input.descriptor.id.clone(), credential_id);
         }
         Ok(ProviderConfigureResult {
             descriptor: input.descriptor,
@@ -285,7 +549,19 @@ impl ProviderRuntime {
             .lifecycle
             .lock()
             .map_err(|_| ProviderError::ProviderFailure)?;
-        let descriptor = self.registry.descriptor(provider_id)?;
+        let descriptor = match self.registry.descriptor(provider_id) {
+            Ok(descriptor) => descriptor,
+            Err(ProviderError::ProviderNotFound) => {
+                let settings = self
+                    .configurations
+                    .write()
+                    .map_err(|_| ProviderError::ProviderFailure)?
+                    .remove(provider_id)
+                    .ok_or(ProviderError::ProviderNotFound)?;
+                return Ok(settings.descriptor);
+            }
+            Err(error) => return Err(error),
+        };
         let credential_id = self
             .credential_refs
             .write()
@@ -328,6 +604,10 @@ impl ProviderRuntime {
             }
             return Err(error);
         }
+        let _ = self
+            .configurations
+            .write()
+            .map(|mut configurations| configurations.remove(provider_id));
         Ok(descriptor)
     }
 }
@@ -513,6 +793,59 @@ mod tests {
     }
 
     #[test]
+    fn removes_remembered_provider_when_secure_credential_is_missing() {
+        let runtime = ProviderRuntime::new(Arc::new(EphemeralCredentialStore::new()));
+        let configured = input("inactive");
+        runtime
+            .remember_settings(ProviderSettings {
+                descriptor: configured.descriptor.clone(),
+                base_url: configured.base_url.clone(),
+                models: configured.models.clone(),
+                credential_id: configured.credential_id.clone(),
+            })
+            .unwrap();
+
+        assert_eq!(runtime.remove("inactive").unwrap().id, "inactive");
+        assert_eq!(
+            runtime.settings("inactive"),
+            Err(ProviderError::ProviderNotFound)
+        );
+    }
+
+    #[test]
+    fn updates_provider_metadata_and_keeps_existing_secret_when_omitted() {
+        let store = Arc::new(EphemeralCredentialStore::new());
+        let runtime = ProviderRuntime::new(store);
+        runtime.configure(input("provider")).unwrap();
+
+        let mut replacement_model = models("provider").remove(0);
+        replacement_model.model_id = "writer-large".into();
+        replacement_model.display_name = "Writer Large".into();
+        let updated = runtime
+            .update(ProviderUpdateInput {
+                descriptor: ProviderDescriptor {
+                    id: "provider".into(),
+                    display_name: "Updated Provider".into(),
+                },
+                base_url: "https://updated.example.test/v1".into(),
+                models: vec![replacement_model],
+                credential_id: "credential-1".into(),
+                credential_value: None,
+            })
+            .unwrap();
+
+        assert_eq!(updated.descriptor.display_name, "Updated Provider");
+        assert_eq!(
+            runtime.registry().list_models(None).unwrap()[0].model_id,
+            "writer-large"
+        );
+        assert_eq!(
+            runtime.settings("provider").unwrap().base_url,
+            "https://updated.example.test/v1"
+        );
+    }
+
+    #[test]
     fn duplicate_and_invalid_configurations_roll_back_credentials() {
         let store = Arc::new(EphemeralCredentialStore::new());
         let runtime = ProviderRuntime::new(store.clone());
@@ -565,6 +898,20 @@ mod tests {
         store.put(&id, SecretValue::new("secret").unwrap()).unwrap();
         let fresh_store = EphemeralCredentialStore::new();
         assert_eq!(fresh_store.get(&id), Err(ProviderError::CredentialNotFound));
+    }
+
+    #[test]
+    fn stale_persistent_credential_can_be_reused_after_runtime_restart() {
+        let store = Arc::new(EphemeralCredentialStore::new());
+        let credential_id = CredentialId::new("credential-1").unwrap();
+        store
+            .put(&credential_id, SecretValue::new("previous-token").unwrap())
+            .unwrap();
+
+        let runtime = ProviderRuntime::new(store.clone());
+        runtime.configure(input("provider")).unwrap();
+
+        assert_eq!(store.get(&credential_id).unwrap().expose(), "secret-token");
     }
 
     #[test]

@@ -105,6 +105,28 @@ impl ProviderRegistry {
             .ok_or(ProviderError::ProviderNotFound)
     }
 
+    pub fn replace(&self, provider: Arc<dyn AIProvider>) -> ProviderResult<Arc<dyn AIProvider>> {
+        let descriptor = provider.descriptor();
+        if descriptor.id.trim().is_empty() {
+            return Err(ProviderError::InvalidRequest);
+        }
+        let models = provider.list_models()?;
+        let mut seen = std::collections::BTreeSet::new();
+        for model in &models {
+            model.validate()?;
+            if model.provider_id != descriptor.id || !seen.insert(model.model_id.clone()) {
+                return Err(ProviderError::DuplicateModel);
+            }
+        }
+        let mut providers = self
+            .providers
+            .write()
+            .map_err(|_| ProviderError::ProviderFailure)?;
+        providers
+            .insert(descriptor.id, provider)
+            .ok_or(ProviderError::ProviderNotFound)
+    }
+
     pub fn contains(&self, provider_id: &str) -> ProviderResult<bool> {
         Ok(self
             .providers

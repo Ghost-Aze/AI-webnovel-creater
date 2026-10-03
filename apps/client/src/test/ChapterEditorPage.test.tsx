@@ -17,6 +17,7 @@ const chapterChatSendMock = vi.hoisted(() => vi.fn());
 const createProposalMock = vi.hoisted(() => vi.fn());
 const promoteProposalMock = vi.hoisted(() => vi.fn());
 const rejectProposalMock = vi.hoisted(() => vi.fn());
+const listModelsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
   getChapter: getChapterMock,
@@ -33,6 +34,7 @@ vi.mock("../lib/commands", () => ({
   createManuscriptProposal: createProposalMock,
   promoteManuscriptProposal: promoteProposalMock,
   rejectManuscriptProposal: rejectProposalMock,
+  listModels: listModelsMock,
 }));
 
 import { ChapterEditorPage } from "../features/manuscripts/ChapterEditorPage";
@@ -115,6 +117,7 @@ describe("ChapterEditorPage", () => {
     ]);
     listConversationMessagesMock.mockResolvedValue([]);
     listProposalsMock.mockResolvedValue([]);
+    listModelsMock.mockResolvedValue([]);
   });
 
   it("loads prose, saves a new revision and exposes restore", async () => {

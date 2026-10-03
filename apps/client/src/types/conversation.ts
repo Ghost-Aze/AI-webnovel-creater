@@ -61,6 +61,7 @@ export interface DeveloperChatSendRequest {
   context_budget: ContextBudget;
   message: string;
   temperature: number | null;
+  retry_attempt: boolean;
 }
 
 export interface DeveloperChatSendResult {

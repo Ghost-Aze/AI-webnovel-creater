@@ -228,6 +228,7 @@ fn context_task(task: ModelTask) -> ContextTask {
         ModelTask::ArcPlanning => ContextTask::ArcPlanning,
         ModelTask::ChapterPlanning => ContextTask::ChapterPlanning,
         ModelTask::ScenePlanning => ContextTask::ScenePlanning,
+        ModelTask::DeveloperChat => ContextTask::DeveloperChat,
         ModelTask::MainWriting | ModelTask::MajorRevision => ContextTask::Writing,
         ModelTask::ContinuityCheck | ModelTask::PlotAnalysis | ModelTask::StyleCheck => {
             ContextTask::ContinuityCheck
@@ -248,6 +249,7 @@ fn agent_for(task: ModelTask) -> LogicalAgent {
         | ModelTask::TimelineExtraction
         | ModelTask::Metadata => LogicalAgent::MemoryCurator,
         ModelTask::PlotAnalysis => LogicalAgent::PlotAnalyst,
+        ModelTask::DeveloperChat => LogicalAgent::Writer,
         _ => LogicalAgent::Planner,
     }
 }
@@ -542,6 +544,13 @@ mod tests {
         let plan = OrchestrationPlan::for_request(ModelTask::Summary, QualityMode::Deep);
         assert_eq!(plan.steps.len(), 1);
         assert_eq!(plan.steps[0].agent, LogicalAgent::MemoryCurator);
+        assert!(plan.steps[0].depends_on.is_empty());
+    }
+
+    #[test]
+    fn developer_chat_uses_one_task_specific_step() {
+        let plan = OrchestrationPlan::for_request(ModelTask::DeveloperChat, QualityMode::Balanced);
+        assert_eq!(plan.steps.len(), 1);
         assert!(plan.steps[0].depends_on.is_empty());
     }
 

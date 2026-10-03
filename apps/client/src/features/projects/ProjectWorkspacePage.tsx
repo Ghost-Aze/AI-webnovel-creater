@@ -5,6 +5,7 @@ import { normalizeCommandError } from "../../lib/command-error";
 import { archiveProject, getProject, updateProject } from "../../lib/commands";
 import type { Project } from "../../types/project";
 import { CharacterPanel } from "./CharacterPanel";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { ChapterPanel } from "../manuscripts/ChapterPanel";
 
 export function ProjectWorkspacePage() {
@@ -17,6 +18,7 @@ export function ProjectWorkspacePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -127,11 +129,18 @@ export function ProjectWorkspacePage() {
               Archive project
             </button>
           )}
+          <button
+            className="button button-danger-ghost"
+            type="button"
+            onClick={() => setIsDeleteDialogOpen(true)}
+          >
+            Delete project
+          </button>
         </div>
       </header>
 
       <div className="workspace-grid">
-        <div className="workspace-primary">
+        <div className="workspace-primary" id="project-details">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Project details</p>
@@ -193,6 +202,13 @@ export function ProjectWorkspacePage() {
           </div>
         </div>
       </div>
+      {isDeleteDialogOpen && (
+        <DeleteProjectDialog
+          project={project}
+          onClose={() => setIsDeleteDialogOpen(false)}
+          onDeleted={() => navigate("/projects")}
+        />
+      )}
     </section>
   );
 }

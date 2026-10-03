@@ -5,6 +5,7 @@ import { normalizeCommandError } from "../../lib/command-error";
 import { listProjects } from "../../lib/commands";
 import type { Project } from "../../types/project";
 import { NewProjectDialog } from "./NewProjectDialog";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { projectStatusLabel, projectUpdatedLabel } from "./project-view-model";
 
 export function ProjectsPage() {
@@ -14,6 +15,7 @@ export function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
@@ -113,25 +115,52 @@ export function ProjectsPage() {
       {!isLoading && !error && projects.length > 0 && (
         <div className="project-grid" aria-label="Projects list">
           {projects.map((project) => (
-            <Link
+            <article
               className={`project-card ${project.status === "archived" ? "project-card-archived" : ""}`}
-              to={`/projects/${project.id}`}
               key={project.id}
             >
-              <div className="project-card-topline">
-                <span className={`project-status status-${project.status}`}>
-                  {projectStatusLabel(project)}
+              <Link
+                className="project-card-main"
+                to={`/projects/${project.id}`}
+              >
+                <div className="project-card-topline">
+                  <span className={`project-status status-${project.status}`}>
+                    {projectStatusLabel(project)}
+                  </span>
+                  <span className="project-arrow" aria-hidden="true">
+                    ↗
+                  </span>
+                </div>
+                <h2>{project.name}</h2>
+                <p>{project.description || "No premise added yet."}</p>
+                <span className="project-updated">
+                  {projectUpdatedLabel(project)}
                 </span>
-                <span className="project-arrow" aria-hidden="true">
-                  ↗
-                </span>
+              </Link>
+              <div className="project-card-actions" aria-label={`${project.name} actions`}>
+                <Link
+                  className="button button-ghost button-small"
+                  to={`/projects/${project.id}`}
+                >
+                  Open
+                </Link>
+                <Link
+                  className="button button-ghost button-small"
+                  to={`/projects/${project.id}#project-details`}
+                  aria-label={`Edit ${project.name}`}
+                >
+                  Edit
+                </Link>
+                <button
+                  className="button button-danger-ghost button-small"
+                  type="button"
+                  onClick={() => setDeleteTarget(project)}
+                  aria-label={`Delete ${project.name}`}
+                >
+                  Delete
+                </button>
               </div>
-              <h2>{project.name}</h2>
-              <p>{project.description || "No premise added yet."}</p>
-              <span className="project-updated">
-                {projectUpdatedLabel(project)}
-              </span>
-            </Link>
+            </article>
           ))}
         </div>
       )}
@@ -140,6 +169,18 @@ export function ProjectsPage() {
         <NewProjectDialog
           onClose={() => setIsDialogOpen(false)}
           onCreated={handleCreated}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteProjectDialog
+          project={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            setProjects((current) =>
+              current.filter((item) => item.id !== deleteTarget.id),
+            );
+            setDeleteTarget(null);
+          }}
         />
       )}
     </section>

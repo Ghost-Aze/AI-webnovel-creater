@@ -48,4 +48,8 @@ impl ProjectService {
     pub fn archive(&self, id: &str) -> AppResult<Project> {
         self.repository.archive(id, &now_utc())
     }
+
+    pub fn delete(&self, id: &str) -> AppResult<()> {
+        self.repository.delete(id)
+    }
 }

@@ -155,6 +155,15 @@ impl ProjectRepository {
         drop(connection);
         self.get(id)
     }
+
+    pub fn delete(&self, id: &str) -> AppResult<()> {
+        let connection = self.connection.lock()?;
+        let changed = connection.execute("DELETE FROM projects WHERE id = ?1", [id])?;
+        if changed == 0 {
+            return Err(AppError::NotFound);
+        }
+        Ok(())
+    }
 }
 
 fn map_project(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
@@ -40,11 +40,48 @@ describe("AppShell mobile navigation", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Developer Chat" }),
-    ).toHaveAttribute("href", "/projects/project-1/chat");
-    expect(screen.getByRole("link", { name: "Manuscripts" })).toHaveAttribute(
+      screen.getByRole("navigation", { name: "Project navigation" }),
+    ).toBeInTheDocument();
+    const projectNavigation = screen.getByRole("navigation", {
+      name: "Project navigation",
+    });
+    expect(within(projectNavigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
-      "/projects/project-1/manuscripts",
+      "/projects/project-1",
     );
+    expect(
+      within(projectNavigation).getByRole("link", { name: "Developer Chat" }),
+    ).toHaveAttribute("href", "/projects/project-1/chat");
+    expect(
+      within(projectNavigation).getByRole("link", { name: "Manuscripts" }),
+    ).toHaveAttribute("href", "/projects/project-1/manuscripts");
+    const mobileNavigation = screen.getByRole("navigation", {
+      name: "Mobile navigation",
+    });
+    expect(
+      within(mobileNavigation).getByRole("link", { name: "Manuscripts" }),
+    ).toHaveAttribute("href", "/projects/project-1/manuscripts");
+  });
+
+  it("keeps provider settings out of the project navigation rail", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings/providers"]}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    const sidebar = screen.getByRole("complementary", {
+      name: "Application sidebar",
+    });
+    expect(within(sidebar).getByRole("link", { name: "Providers" })).toHaveAttribute(
+      "href",
+      "/settings/providers",
+    );
+    expect(
+      within(sidebar).queryByRole("link", { name: "Developer Chat" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(sidebar).queryByRole("link", { name: "Manuscripts" }),
+    ).not.toBeInTheDocument();
   });
 });

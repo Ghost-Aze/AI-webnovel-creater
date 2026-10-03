@@ -27,6 +27,7 @@ pub struct DeveloperChatSendRequest {
     pub context_budget: ContextBudget,
     pub message: String,
     pub temperature: Option<f32>,
+    pub retry_attempt: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -77,15 +78,31 @@ impl DeveloperChatService {
             });
         }
         let previous_messages = conversations.list_messages(&conversation.id, Some(20))?;
-        let user_message = conversations.append_message(
-            &conversation.id,
-            AppendMessageInput {
-                role: MessageRole::User,
-                content: request.message.clone(),
-                model: None,
-            },
-        )?;
-        let mut working_memory = previous_messages
+        let (user_message, context_messages): (ConversationMessage, &[ConversationMessage]) =
+            if request.retry_attempt {
+                let user_message = previous_messages
+                    .last()
+                    .filter(|message| {
+                        message.role == MessageRole::User && message.content == request.message
+                    })
+                    .cloned()
+                    .ok_or_else(|| AppError::Validation {
+                        message: "The chat retry does not match the latest user message.".into(),
+                    })?;
+                let context_end = previous_messages.len().saturating_sub(1);
+                (user_message, &previous_messages[..context_end])
+            } else {
+                let user_message = conversations.append_message(
+                    &conversation.id,
+                    AppendMessageInput {
+                        role: MessageRole::User,
+                        content: request.message.clone(),
+                        model: None,
+                    },
+                )?;
+                (user_message, previous_messages.as_slice())
+            };
+        let mut working_memory = context_messages
             .iter()
             .map(|message| WorkingMemoryBlock {
                 id: format!("conversation:{}", message.id),
@@ -212,7 +229,7 @@ mod tests {
     fn request(conversation_id: String) -> DeveloperChatSendRequest {
         DeveloperChatSendRequest {
             conversation_id,
-            task: ModelTask::MainWriting,
+            task: ModelTask::DeveloperChat,
             quality: QualityMode::Fast,
             preferred_model: None,
             required_capabilities: ProviderCapabilities::default(),
@@ -223,6 +240,7 @@ mod tests {
             context_budget: ContextBudget::default(),
             message: "Draft the next scene.".into(),
             temperature: None,
+            retry_attempt: false,
         }
     }
 
@@ -297,7 +315,7 @@ mod tests {
         .unwrap();
         assert_eq!(result.user_message.role, MessageRole::User);
         assert_eq!(result.assistant_message.role, MessageRole::Assistant);
-        assert_eq!(result.orchestration.steps.len(), 3);
+        assert_eq!(result.orchestration.steps.len(), 1);
         assert!(result.orchestration.steps[0]
             .context
             .blocks
@@ -324,6 +342,72 @@ mod tests {
         let messages = conversations.list_messages(&conversation_id, None).unwrap();
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].role, MessageRole::User);
+    }
+
+    #[test]
+    fn retry_reuses_failed_user_turn_without_duplicate_message() {
+        let (conversations, source, registry, conversation_id) = setup();
+        let empty_registry = ProviderRegistry::new();
+        let initial = request(conversation_id.clone());
+        let error = block_on(DeveloperChatService.send(
+            &conversations,
+            &empty_registry,
+            &crate::context::ContextCompiler::default(),
+            &source,
+            initial,
+        ))
+        .unwrap_err();
+        assert_eq!(error, AppError::NoSuitableModel);
+
+        let mut retry = request(conversation_id.clone());
+        retry.retry_attempt = true;
+        block_on(DeveloperChatService.send(
+            &conversations,
+            &registry,
+            &crate::context::ContextCompiler::default(),
+            &source,
+            retry,
+        ))
+        .unwrap();
+
+        let messages = conversations.list_messages(&conversation_id, None).unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].role, MessageRole::User);
+        assert_eq!(messages[1].role, MessageRole::Assistant);
+    }
+
+    #[test]
+    fn retry_rejects_when_latest_user_turn_does_not_match() {
+        let (conversations, source, registry, conversation_id) = setup();
+        conversations
+            .append_message(
+                &conversation_id,
+                AppendMessageInput {
+                    role: MessageRole::User,
+                    content: "A different request".into(),
+                    model: None,
+                },
+            )
+            .unwrap();
+        let mut retry = request(conversation_id.clone());
+        retry.retry_attempt = true;
+
+        let error = block_on(DeveloperChatService.send(
+            &conversations,
+            &registry,
+            &crate::context::ContextCompiler::default(),
+            &source,
+            retry,
+        ))
+        .unwrap_err();
+        assert!(matches!(error, AppError::Validation { .. }));
+        assert_eq!(
+            conversations
+                .list_messages(&conversation_id, None)
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]

@@ -8,6 +8,9 @@ export function AppShell() {
   const { pathname } = useLocation();
   const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1];
   const chatPath = projectId ? `/projects/${projectId}/chat` : "/chat";
+  const manuscriptsPath = projectId
+    ? `/projects/${projectId}/manuscripts`
+    : "/manuscripts";
 
   return (
     <div className="app-shell">
@@ -44,6 +47,15 @@ export function AppShell() {
           <span aria-hidden="true">✦</span>
           <small>Chat</small>
         </NavLink>
+        {projectId && (
+          <NavLink
+            className="mobile-bottom-nav-link"
+            to={manuscriptsPath}
+          >
+            <span aria-hidden="true">◈</span>
+            <small>Manuscripts</small>
+          </NavLink>
+        )}
         <NavLink className="mobile-bottom-nav-link" to="/settings/providers">
           <span aria-hidden="true">✦</span>
           <small>Models</small>

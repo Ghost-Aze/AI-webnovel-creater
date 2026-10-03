@@ -60,6 +60,24 @@ pub enum AppError {
     #[serde(rename = "provider_failure")]
     #[error("The provider operation failed.")]
     ProviderFailure,
+    #[serde(rename = "provider_unauthorized")]
+    #[error("The provider credentials were rejected.")]
+    ProviderUnauthorized,
+    #[serde(rename = "provider_endpoint_not_found")]
+    #[error("The provider endpoint or model was not found.")]
+    ProviderEndpointNotFound,
+    #[serde(rename = "provider_rate_limited")]
+    #[error("The provider rate limit was reached.")]
+    ProviderRateLimited,
+    #[serde(rename = "provider_unavailable")]
+    #[error("The provider is temporarily unavailable.")]
+    ProviderUnavailable,
+    #[serde(rename = "provider_timeout")]
+    #[error("The provider request timed out.")]
+    ProviderTimeout,
+    #[serde(rename = "provider_network_failure")]
+    #[error("The provider could not be reached.")]
+    ProviderNetworkFailure,
     #[serde(rename = "secure_store_unavailable")]
     #[error("Secure credential storage is not available on this build.")]
     SecureStoreUnavailable,
@@ -94,6 +112,12 @@ impl AppError {
             Self::UnsupportedCapability => "unsupported_capability",
             Self::InvalidProviderRequest => "invalid_provider_request",
             Self::ProviderFailure => "provider_failure",
+            Self::ProviderUnauthorized => "provider_unauthorized",
+            Self::ProviderEndpointNotFound => "provider_endpoint_not_found",
+            Self::ProviderRateLimited => "provider_rate_limited",
+            Self::ProviderUnavailable => "provider_unavailable",
+            Self::ProviderTimeout => "provider_timeout",
+            Self::ProviderNetworkFailure => "provider_network_failure",
             Self::SecureStoreUnavailable => "secure_store_unavailable",
             Self::Storage => "storage",
             Self::Internal => "internal",
@@ -110,6 +134,12 @@ impl From<ProviderError> for AppError {
             ProviderError::UnsupportedCapability { .. } => Self::UnsupportedCapability,
             ProviderError::InvalidRequest => Self::InvalidProviderRequest,
             ProviderError::ProviderFailure => Self::ProviderFailure,
+            ProviderError::Unauthorized => Self::ProviderUnauthorized,
+            ProviderError::EndpointNotFound => Self::ProviderEndpointNotFound,
+            ProviderError::RateLimited => Self::ProviderRateLimited,
+            ProviderError::Unavailable => Self::ProviderUnavailable,
+            ProviderError::Timeout => Self::ProviderTimeout,
+            ProviderError::NetworkFailure => Self::ProviderNetworkFailure,
             ProviderError::CredentialNotFound => Self::ProviderFailure,
             ProviderError::CredentialAlreadyRegistered => Self::ProviderFailure,
             ProviderError::SecureStoreUnavailable => Self::SecureStoreUnavailable,

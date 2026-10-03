@@ -53,6 +53,7 @@ pub(crate) struct HttpResponse {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum HttpTransportError {
     RequestFailed,
+    RequestTimeout,
     ResponseReadFailed,
     Status(u16),
 }
@@ -93,7 +94,13 @@ impl HttpTransport for ReqwestTransport {
             .json(&request.body)
             .send()
             .await
-            .map_err(|_| HttpTransportError::RequestFailed)?;
+            .map_err(|error| {
+                if error.is_timeout() {
+                    HttpTransportError::RequestTimeout
+                } else {
+                    HttpTransportError::RequestFailed
+                }
+            })?;
         let status = response.status().as_u16();
         let body = response
             .text()
@@ -113,7 +120,13 @@ impl HttpTransport for ReqwestTransport {
             .json(&request.body)
             .send()
             .await
-            .map_err(|_| HttpTransportError::RequestFailed)?;
+            .map_err(|error| {
+                if error.is_timeout() {
+                    HttpTransportError::RequestTimeout
+                } else {
+                    HttpTransportError::RequestFailed
+                }
+            })?;
         let status = response.status().as_u16();
         if !(200..300).contains(&status) {
             return Err(HttpTransportError::Status(status));
@@ -141,6 +154,28 @@ fn headers(
             ))
         })
         .collect()
+}
+
+fn provider_error_for_status(status: u16) -> ProviderError {
+    match status {
+        400 | 422 => ProviderError::InvalidRequest,
+        401 | 403 => ProviderError::Unauthorized,
+        404 => ProviderError::EndpointNotFound,
+        408 => ProviderError::Timeout,
+        429 => ProviderError::RateLimited,
+        500..=599 => ProviderError::Unavailable,
+        _ => ProviderError::ProviderFailure,
+    }
+}
+
+fn provider_error_for_transport(error: &HttpTransportError) -> ProviderError {
+    match error {
+        HttpTransportError::RequestTimeout => ProviderError::Timeout,
+        HttpTransportError::RequestFailed | HttpTransportError::ResponseReadFailed => {
+            ProviderError::NetworkFailure
+        }
+        HttpTransportError::Status(status) => provider_error_for_status(*status),
+    }
 }
 
 pub struct OpenAiCompatibleProvider {
@@ -276,9 +311,9 @@ impl AIProvider for OpenAiCompatibleProvider {
             .transport
             .post_json(self.request(&request, false))
             .await
-            .map_err(|_| ProviderError::ProviderFailure)?;
+            .map_err(|error| provider_error_for_transport(&error))?;
         if !(200..300).contains(&response.status) {
-            return Err(ProviderError::ProviderFailure);
+            return Err(provider_error_for_status(response.status));
         }
         let payload: ChatCompletionResponse =
             serde_json::from_str(&response.body).map_err(|_| ProviderError::ProviderFailure)?;
@@ -317,7 +352,7 @@ impl AIProvider for OpenAiCompatibleProvider {
             .transport
             .post_stream(self.request(&request, true))
             .await
-            .map_err(|_| ProviderError::ProviderFailure)?;
+            .map_err(|error| provider_error_for_transport(&error))?;
         Ok(Box::pin(SseResponseStream::new(chunks)))
     }
 }
@@ -635,7 +670,7 @@ mod tests {
         });
         assert_eq!(
             block_on(provider(transport).generate(request())),
-            Err(ProviderError::ProviderFailure)
+            Err(ProviderError::Unauthorized)
         );
 
         let requests = Arc::new(Mutex::new(Vec::new()));
@@ -821,5 +856,36 @@ mod tests {
             super::headers(&headers),
             Err(HttpTransportError::RequestFailed)
         ));
+    }
+
+    #[test]
+    fn classifies_provider_http_statuses_without_retaining_response_body() {
+        let cases = [
+            (400, ProviderError::InvalidRequest),
+            (422, ProviderError::InvalidRequest),
+            (401, ProviderError::Unauthorized),
+            (403, ProviderError::Unauthorized),
+            (404, ProviderError::EndpointNotFound),
+            (408, ProviderError::Timeout),
+            (429, ProviderError::RateLimited),
+            (500, ProviderError::Unavailable),
+            (503, ProviderError::Unavailable),
+        ];
+
+        for (status, expected) in cases {
+            assert_eq!(super::provider_error_for_status(status), expected);
+        }
+    }
+
+    #[test]
+    fn classifies_transport_failures_by_recovery_action() {
+        assert_eq!(
+            super::provider_error_for_transport(&HttpTransportError::RequestTimeout),
+            ProviderError::Timeout
+        );
+        assert_eq!(
+            super::provider_error_for_transport(&HttpTransportError::RequestFailed),
+            ProviderError::NetworkFailure
+        );
     }
 }

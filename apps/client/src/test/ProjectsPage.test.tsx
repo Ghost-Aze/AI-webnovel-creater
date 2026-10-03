@@ -7,10 +7,12 @@ import { CommandError } from "../lib/command-error";
 
 const listProjectsMock = vi.hoisted(() => vi.fn());
 const createProjectMock = vi.hoisted(() => vi.fn());
+const deleteProjectMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
   listProjects: listProjectsMock,
   createProject: createProjectMock,
+  deleteProject: deleteProjectMock,
   getProject: vi.fn(),
   updateProject: vi.fn(),
   archiveProject: vi.fn(),
@@ -108,5 +110,27 @@ describe("ProjectsPage", () => {
       "The project could not be saved. Try again.",
     );
     expect(alert).not.toHaveTextContent("SQLite");
+  });
+
+  it("exposes edit and delete actions for an existing project", async () => {
+    const user = userEvent.setup();
+    listProjectsMock.mockResolvedValueOnce([project]);
+    renderProjects();
+
+    expect(await screen.findByText("The Long Night")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Edit The Long Night" }),
+    ).toHaveAttribute("href", "/projects/project-1#project-details");
+
+    await user.click(
+      screen.getByRole("button", { name: "Delete The Long Night" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Delete project?" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+
+    await waitFor(() => expect(deleteProjectMock).toHaveBeenCalledWith("project-1"));
+    expect(screen.queryByText("The Long Night")).not.toBeInTheDocument();
   });
 });

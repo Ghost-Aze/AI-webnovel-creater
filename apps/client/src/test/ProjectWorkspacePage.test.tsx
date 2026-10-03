@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getProjectMock = vi.hoisted(() => vi.fn());
 const updateProjectMock = vi.hoisted(() => vi.fn());
 const archiveProjectMock = vi.hoisted(() => vi.fn());
+const deleteProjectMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
   getProject: getProjectMock,
   updateProject: updateProjectMock,
   archiveProject: archiveProjectMock,
+  deleteProject: deleteProjectMock,
 }));
 
 vi.mock("../features/projects/CharacterPanel", () => ({
@@ -54,6 +56,7 @@ describe("ProjectWorkspacePage", () => {
       revision: 2,
     });
     archiveProjectMock.mockResolvedValue({ ...project, status: "archived" });
+    deleteProjectMock.mockResolvedValue(undefined);
   });
 
   it("loads and saves project details", async () => {
@@ -108,6 +111,18 @@ describe("ProjectWorkspacePage", () => {
     await waitFor(() =>
       expect(archiveProjectMock).toHaveBeenCalledWith("project-1"),
     );
+    expect(await screen.findByText("Projects list")).toBeInTheDocument();
+  });
+
+  it("deletes the project from its workspace after confirmation", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await screen.findByRole("heading", { name: "The Long Night" });
+    await user.click(screen.getByRole("button", { name: "Delete project" }));
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+
+    await waitFor(() => expect(deleteProjectMock).toHaveBeenCalledWith("project-1"));
     expect(await screen.findByText("Projects list")).toBeInTheDocument();
   });
 });

@@ -49,6 +49,10 @@ const MIGRATIONS: &[Migration] = &[
         name: "0009_project_memory.sql",
         sql: include_str!("../../migrations/0009_project_memory.sql"),
     },
+    Migration {
+        name: "0010_provider_settings.sql",
+        sql: include_str!("../../migrations/0010_provider_settings.sql"),
+    },
 ];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;
