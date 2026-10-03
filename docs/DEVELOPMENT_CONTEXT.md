@@ -17,7 +17,7 @@ documents are under `docs/superpowers/`.
 ## Implementation state
 
 - Current approved branch: `phase13/implementation`
-- Latest Phase 15 implementation commit: `f724536 feat: add project memory client contracts`
+- Latest Phase 15 implementation commit: `215c846 fix: validate project memory proposals`
 - Phase 12 base commit: `12fa759`
 - Phase 11 base commit: `76552e6`
 - `main` has not been merged into by implementation work.
