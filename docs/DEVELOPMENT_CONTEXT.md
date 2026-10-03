@@ -17,7 +17,7 @@ documents are under `docs/superpowers/`.
 ## Implementation state
 
 - Current approved branch: `phase13/implementation`
-- Latest Phase 13 commit: `9c8cb5f feat: add chapter chat manuscript proposals`
+- Latest Phase 15 implementation commit: `f724536 feat: add project memory client contracts`
 - Phase 12 base commit: `12fa759`
 - Phase 11 base commit: `76552e6`
 - `main` has not been merged into by implementation work.
@@ -54,23 +54,43 @@ documents are under `docs/superpowers/`.
 - Authentication, cloud sync, multi-user access, project-level overrides,
   provider settings and a visual settings screen remain deferred.
 
+## Phase 15 decisions
+
+- `StoryFact` and `CanonRule` are typed, project-scoped SQLite entities created
+  by migration `0009_project_memory.sql`. New records start at revision 1 with
+  active/canon status; archive is idempotent and archived rows remain readable.
+- Rust owns project-memory SQL, normalization, revision history and policy.
+  Writes require an active project and reject archived memory, locked canon and
+  stale revisions with safe typed errors (`archived_memory`, `locked_canon` or
+  `conflict`).
+- AI create/update proposals for these entities remain drafts. Promotion writes
+  the canonical row, shared revision and accepted proposal atomically; create
+  promotion records its generated entity id. AI providers never write canonical
+  project memory directly.
+- Context compilation accepts only an explicit ordered
+  `project_memory_refs` list. It loads selected facts/rules through the typed
+  source, preserves request order and applies the existing budget policy. It
+  never scans or extracts project memory automatically.
+- Native AppState owns one shared `ProjectMemoryService`; Tauri and TypeScript
+  expose typed `story_fact_*` and `canon_rule_*` CRUD commands. No Project Bible
+  React screen or design revision is part of this phase.
+
 ## Verification baseline
 
-The current Phase 14 baseline is:
+The current Phase 15 baseline is:
 
-- Rust: 95 unit tests plus 25 integration tests pass.
+- Rust: 100 unit tests plus 22 integration tests pass.
 - Rust `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
   pass.
-- Frontend: 63 Vitest tests across 16 files pass.
+- Frontend: 64 Vitest tests across 16 files pass.
 - Frontend typecheck, ESLint and production build pass. The repository-wide
   Prettier check still reports existing formatting drift across the client and
   is not part of the required source verification gate.
 - Windows native smoke test starts `webnovel-ai-studio` successfully and the
   Vite endpoint returns HTTP 200.
-- Native `cargo check --features tauri-app` cannot complete in the cloud Linux
-  environment because GTK/GObject/GIO/GDK development packages are absent.
-  Windows native and Android builds must be verified on machines with their
-  respective SDK/toolchain prerequisites.
+- Native `cargo check --features tauri-app` passes in the Windows development
+  environment. Android builds still require verification on a machine with the
+  Android SDK and NDK prerequisites.
 
 ## Local continuation
 

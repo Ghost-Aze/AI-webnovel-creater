@@ -22,12 +22,14 @@ src-tauri
   domain/user.rs            local UserProfile and UserPreferences types
   users/service.rs          local user validation and revision policy
   users/repository.rs       user profile/preferences SQL and row mapping
+  domain/project_memory.rs  StoryFact and CanonRule provider-independent types
+  project_memory/           project-memory SQL, revisions and policy
 migrations/                 ordered SQL files
 ```
 
 ## Command boundary
 
-The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`; Phase 13 adds `chapter_chat_send` and the `manuscript_proposal_*` lifecycle commands; Phase 14 adds `user_profile_get`, `user_profile_update`, `user_preferences_get` and `user_preferences_update` for the local singleton profile and global writing preferences. Provider/model discovery, routing, context preview, Chapter Chat, proposal review and user preferences remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
+The project commands are `project_create`, `project_list`, `project_get`, `project_update` and `project_archive`. Phase 1 adds `character_create`, `character_list`, `character_get`, `character_update`, `character_archive`, `character_state_get` and `character_state_update`. Phase 2 requires `expected_revision` on Character and CharacterState mutations so stale device state cannot overwrite a newer snapshot. Phase 3 adds `provider_list`, `model_list` and `context_compile`; Phase 8 adds `model_route`; Phase 9 adds `orchestrator_run`; Phase 13 adds `chapter_chat_send` and the `manuscript_proposal_*` lifecycle commands; Phase 14 adds `user_profile_get`, `user_profile_update`, `user_preferences_get` and `user_preferences_update` for the local singleton profile and global writing preferences. Phase 15 adds `story_fact_*` and `canon_rule_*` CRUD commands for typed project memory, plus explicit project-memory context references. Provider/model discovery, routing, context preview, Chapter Chat, proposal review and user preferences remain typed command operations rather than provider-specific UI logic. They accept and return serde types matching the TypeScript definitions. Expected failures use serializable codes (`validation`, `not_found`, `archived_project`, `archived_character`, `archived_memory`, `duplicate_name`, `conflict`, `locked_canon`, `invalid_proposal`, `provider_not_found`, `model_not_found`, `no_suitable_model`, `unsupported_capability`, `invalid_provider_request`, `provider_failure`, `storage` and `internal`). The frontend maps those codes to user-facing messages and never displays SQL, prompts or Rust stack traces.
 
 The Tauri feature is enabled only for the native shell. Headless tests compile the same domain, repository, service and command-helper code without loading a Linux webview. Native runs initialize the project, character and local user services in Tauri managed state over the same SQLite connection.
 
@@ -76,8 +78,9 @@ local-model adapter.
 
 `src-tauri/src/context` defines `ContextSource`, `ContextCompileRequest` and a
 deterministic `ContextCompiler`. The service-backed source reads only typed
-Project, explicitly selected Character records and optional CharacterState
-records. Caller-supplied working blocks are transient input. The compiler uses
+Project, explicitly selected Character records, optional CharacterState records
+and explicitly selected StoryFact/CanonRule references. Caller-supplied working
+blocks are transient input. The compiler uses
 the selected model's context window, output reserve and safety margin to produce
 ordered blocks, truncation metadata and omissions. It never loads all project
 memory or chat history and never mutates canonical memory.
@@ -287,10 +290,56 @@ client, but Phase 14 intentionally adds no settings screen or automatic use of
 these values in project generation. Authentication, cloud sync, multi-user
 access and project-level preference overrides remain future work.
 
+## Phase 15 project memory core
+
+Migration `0009_project_memory.sql` adds structured `story_facts` and
+`canon_rules` tables with active/archived status, canon status and optimistic
+revision columns. `ProjectMemoryRepository` owns SQL and appends the shared
+`memory_revisions` log transactionally; `ProjectMemoryService` enforces active
+project writes, archived-memory reads and locked-canon policy. Archived records
+remain readable but cannot be edited, restored or promoted, and return the safe
+`archived_memory` error code.
+
+The shared revision/proposal boundary now accepts `story_fact` and `canon_rule`.
+Typed AI create/update proposals remain drafts until explicit promotion. Create
+promotion generates the canonical id and accepts the proposal in the same
+transaction as the row and revision write; stale, cross-project, archived and
+locked targets leave no partial changes. Tauri exposes typed `story_fact_*` and
+`canon_rule_*` CRUD commands alongside history, restore, canon-status and
+proposal commands. TypeScript wrappers mirror the snake_case payloads without
+moving SQL or policy into React.
+
+`ContextCompileRequest.project_memory_refs` is an explicit ordered list of
+`story_fact`/`canon_rule` ids. `ContextSource` loads only those references,
+rejecting missing or cross-project records; the compiler emits priority-70
+typed blocks between the project and character blocks and applies the existing
+budget/truncation policy. Orchestration passes an empty list unless a caller
+explicitly selects records. This phase adds no Project Bible screen, automatic
+extraction, semantic retrieval, relationships or provider-specific memory
+behavior.
+
 ## UI shell
 
 `AppShell` owns the left navigation, center route outlet, right context placeholders and bottom status bar. `/projects` handles list/create/filter states. `/projects/:projectId` handles project details, rename and archive. The CSS switches to a compact navigation row and hides the context panel on narrow screens.
 
 ## Phase boundary
 
-The domain currently covers `Project`, `Character`, `CharacterState`, `Conversation`, `ConversationMessage`, `Chapter`, `Manuscript`, `ManuscriptRevision`, `ManuscriptProposal`, `UserProfile` and `UserPreferences`, with generic revision/proposal infrastructure for canonical memory. Phase 3 adds provider contracts, runtime profiles and read-only context compilation. Phase 4 adds one provider adapter and the typed generate boundary. Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the provider setup route and explicit secure-store boundary. Phase 7 supplies Windows/Android native secure adapters. Phase 8 supplies deterministic model routing. Phase 9 supplies sequential orchestration without canonical writes. Phase 10 supplies durable Developer Chat and proposal-backed memory tools. Phase 11 supplies revision-safe manuscript documents, Phase 12 adds format-aware rich-text editing, autosave and explicit conflicts, Phase 13 adds Chapter Chat with explicit manuscript promotion, and Phase 14 adds the local user profile/preferences foundation. Semantic search, relationships, authentication, collaboration, sync, project overrides and export remain later work. New memory entities must remain structured and provider-independent.
+The domain currently covers `Project`, `Character`, `CharacterState`,
+`StoryFact`, `CanonRule`, `Conversation`, `ConversationMessage`, `Chapter`,
+`Manuscript`, `ManuscriptRevision`, `ManuscriptProposal`, `UserProfile` and
+`UserPreferences`, with generic revision/proposal infrastructure for canonical
+memory. Phase 3 adds provider contracts, runtime profiles and read-only context
+compilation. Phase 4 adds one provider adapter and the typed generate boundary.
+Phase 5 adds an ephemeral runtime configure/remove boundary. Phase 6 adds the
+provider setup route and explicit secure-store boundary. Phase 7 supplies
+Windows/Android native secure adapters. Phase 8 supplies deterministic model
+routing. Phase 9 supplies sequential orchestration without canonical writes.
+Phase 10 supplies durable Developer Chat and proposal-backed memory tools. Phase
+11 supplies revision-safe manuscript documents, Phase 12 adds format-aware
+rich-text editing, autosave and explicit conflicts, Phase 13 adds Chapter Chat
+with explicit manuscript promotion, Phase 14 adds the local user
+profile/preferences foundation, and Phase 15 adds the structured project-memory
+core with explicit context selection. Semantic search, relationships,
+authentication, collaboration, sync, project overrides, export and a Project
+Bible screen remain later work. New memory entities must remain structured and
+provider-independent.

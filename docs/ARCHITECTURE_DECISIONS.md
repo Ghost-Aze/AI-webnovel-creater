@@ -23,6 +23,7 @@ current Phase 1 implementation.
 - Phase 11 supplies structured chapters, one-to-one manuscript documents, optimistic-concurrency saves, immutable manuscript snapshots and a focused plain-text editor route. Rich text, autosave, collaboration, sync and export remain separate phases.
 - Phase 12 adds an explicit manuscript content format, sanitized rich-text editing, debounce autosave and user-directed conflict resolution. Stale saves never retry silently; keeping local prose creates a new revision against the server base.
 - Phase 14 adds a singleton local `UserProfile` and global `UserPreferences` boundary backed by SQLite migration `0008`. Profile and preference updates are typed, normalized and optimistic-revision guarded; this phase does not add authentication, sync, project overrides or a settings UI.
+- Phase 15 adds typed `StoryFact` and `CanonRule` project memory backed by SQLite migration `0009`. CRUD, revisions, restores, canon status and AI proposal promotion use the provider-independent Rust boundary; context compilation accepts only explicit project-memory references. This phase does not add automatic extraction, semantic retrieval, relationships or a Project Bible screen.
 - Provider integrations, orchestration, semantic retrieval, manuscript tooling and sync remain separate phases and require their own implementation approval.
 
 ## Local-first and sync
@@ -81,6 +82,8 @@ current Phase 1 implementation.
 - Phase 10 adds ordered `Conversation`/`ConversationMessage` persistence and the `developer_chat_send`/`memory_tool_propose` command boundaries. User turns survive provider failures, while assistant turns are appended only after a successful run.
 - Phase 11 adds `Chapter`, `Manuscript` and `ManuscriptRevision` persistence. A manuscript save requires an expected revision and appends a snapshot; restore creates a new revision rather than rewriting history. This makes local editor updates safe without coupling prose to chat or provider execution.
 - Phase 12 adds `content_format` to manuscript and revision rows with a `plain_text` migration default. The client converts legacy text to safe HTML for editing and strips unsafe tags/attributes before saving; conflict actions remain explicit and local-first.
+- Phase 15 adds `ProjectMemoryRepository`/`ProjectMemoryService` for structured `StoryFact` and `CanonRule` rows. The shared revision and proposal tables accept their entity values, and the `archived_memory` error keeps archived project-memory failures distinct from character/chapter failures.
+- Phase 15 extends `ContextSource` with typed fact/rule loading. `ContextCompileRequest.project_memory_refs` is caller-selected and order-preserving; the compiler never scans project memory or performs extraction. Tauri and TypeScript expose matching typed CRUD contracts while React remains free of SQL and business policy.
 
 ## Manuscript and chat
 

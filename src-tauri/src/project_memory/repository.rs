@@ -1023,6 +1023,7 @@ fn enum_error(value: &str) -> rusqlite::Error {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_revision<T: Serialize>(
     project_id: &str,
     entity_type: MemoryEntityType,
@@ -1051,6 +1052,7 @@ fn build_revision<T: Serialize>(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_revision_with_actor<T: Serialize>(
     project_id: &str,
     entity_type: MemoryEntityType,
