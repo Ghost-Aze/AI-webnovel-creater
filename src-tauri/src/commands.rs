@@ -26,6 +26,10 @@ use crate::{
     },
     domain::manuscript_proposal::{CreateManuscriptProposalInput, ManuscriptProposal},
     domain::project::{CreateProjectInput, Project, ProjectListFilter, UpdateProjectInput},
+    domain::project_memory::{
+        CanonRule, CreateCanonRuleInput, CreateStoryFactInput, ProjectMemoryListFilter, StoryFact,
+        UpdateCanonRuleInput, UpdateStoryFactInput,
+    },
     domain::revision::{
         CanonStatus, CreateProposalInput, MemoryEntityType, MemoryProposal, MemoryRevision,
         ProposalStatus,
@@ -36,6 +40,7 @@ use crate::{
     error::AppResult,
     memory_tools::{MemoryToolRequest, MemoryToolService},
     orchestration::{NarrativeOrchestrator, OrchestrationRequest, OrchestrationResult},
+    project_memory::service::ProjectMemoryService,
     provider::{
         CredentialStoreStatus, GenerateRequest, GenerateResponse, ModelProfile, ModelRouter,
         ProviderConfigureInput, ProviderConfigureResult, ProviderDescriptor, ProviderRegistry,
@@ -335,6 +340,104 @@ pub fn archive_character_with_revision(
     report(
         "character_archive",
         service.archive_with_revision(&id, expected_revision),
+    )
+}
+
+pub fn create_story_fact(
+    service: &ProjectMemoryService,
+    project_id: String,
+    input: CreateStoryFactInput,
+) -> AppResult<StoryFact> {
+    report(
+        "story_fact_create",
+        service.create_story_fact(project_id, input),
+    )
+}
+
+pub fn list_story_facts(
+    service: &ProjectMemoryService,
+    project_id: String,
+    filter: ProjectMemoryListFilter,
+) -> AppResult<Vec<StoryFact>> {
+    report(
+        "story_fact_list",
+        service.list_story_facts(&project_id, filter),
+    )
+}
+
+pub fn get_story_fact(service: &ProjectMemoryService, id: String) -> AppResult<StoryFact> {
+    report("story_fact_get", service.get_story_fact(&id))
+}
+
+pub fn update_story_fact(
+    service: &ProjectMemoryService,
+    id: String,
+    input: UpdateStoryFactInput,
+    expected_revision: u64,
+) -> AppResult<StoryFact> {
+    report(
+        "story_fact_update",
+        service.update_story_fact(&id, input, expected_revision),
+    )
+}
+
+pub fn archive_story_fact(
+    service: &ProjectMemoryService,
+    id: String,
+    expected_revision: u64,
+) -> AppResult<StoryFact> {
+    report(
+        "story_fact_archive",
+        service.archive_story_fact(&id, expected_revision),
+    )
+}
+
+pub fn create_canon_rule(
+    service: &ProjectMemoryService,
+    project_id: String,
+    input: CreateCanonRuleInput,
+) -> AppResult<CanonRule> {
+    report(
+        "canon_rule_create",
+        service.create_canon_rule(project_id, input),
+    )
+}
+
+pub fn list_canon_rules(
+    service: &ProjectMemoryService,
+    project_id: String,
+    filter: ProjectMemoryListFilter,
+) -> AppResult<Vec<CanonRule>> {
+    report(
+        "canon_rule_list",
+        service.list_canon_rules(&project_id, filter),
+    )
+}
+
+pub fn get_canon_rule(service: &ProjectMemoryService, id: String) -> AppResult<CanonRule> {
+    report("canon_rule_get", service.get_canon_rule(&id))
+}
+
+pub fn update_canon_rule(
+    service: &ProjectMemoryService,
+    id: String,
+    input: UpdateCanonRuleInput,
+    expected_revision: u64,
+) -> AppResult<CanonRule> {
+    report(
+        "canon_rule_update",
+        service.update_canon_rule(&id, input, expected_revision),
+    )
+}
+
+pub fn archive_canon_rule(
+    service: &ProjectMemoryService,
+    id: String,
+    expected_revision: u64,
+) -> AppResult<CanonRule> {
+    report(
+        "canon_rule_archive",
+        service.archive_canon_rule(&id, expected_revision),
     )
 }
 
@@ -856,6 +959,90 @@ mod tauri_commands {
         reject_manuscript_proposal(&state.manuscript_proposal_service, id)
     }
 
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn story_fact_create(
+        state: State<'_, AppState>,
+        project_id: String,
+        input: CreateStoryFactInput,
+    ) -> AppResult<StoryFact> {
+        super::create_story_fact(&state.project_memory_service, project_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn story_fact_list(
+        state: State<'_, AppState>,
+        project_id: String,
+        filter: ProjectMemoryListFilter,
+    ) -> AppResult<Vec<StoryFact>> {
+        super::list_story_facts(&state.project_memory_service, project_id, filter)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn story_fact_get(state: State<'_, AppState>, id: String) -> AppResult<StoryFact> {
+        super::get_story_fact(&state.project_memory_service, id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn story_fact_update(
+        state: State<'_, AppState>,
+        id: String,
+        input: UpdateStoryFactInput,
+        expected_revision: u64,
+    ) -> AppResult<StoryFact> {
+        super::update_story_fact(&state.project_memory_service, id, input, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn story_fact_archive(
+        state: State<'_, AppState>,
+        id: String,
+        expected_revision: u64,
+    ) -> AppResult<StoryFact> {
+        super::archive_story_fact(&state.project_memory_service, id, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn canon_rule_create(
+        state: State<'_, AppState>,
+        project_id: String,
+        input: CreateCanonRuleInput,
+    ) -> AppResult<CanonRule> {
+        super::create_canon_rule(&state.project_memory_service, project_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn canon_rule_list(
+        state: State<'_, AppState>,
+        project_id: String,
+        filter: ProjectMemoryListFilter,
+    ) -> AppResult<Vec<CanonRule>> {
+        super::list_canon_rules(&state.project_memory_service, project_id, filter)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn canon_rule_get(state: State<'_, AppState>, id: String) -> AppResult<CanonRule> {
+        super::get_canon_rule(&state.project_memory_service, id)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn canon_rule_update(
+        state: State<'_, AppState>,
+        id: String,
+        input: UpdateCanonRuleInput,
+        expected_revision: u64,
+    ) -> AppResult<CanonRule> {
+        super::update_canon_rule(&state.project_memory_service, id, input, expected_revision)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn canon_rule_archive(
+        state: State<'_, AppState>,
+        id: String,
+        expected_revision: u64,
+    ) -> AppResult<CanonRule> {
+        super::archive_canon_rule(&state.project_memory_service, id, expected_revision)
+    }
+
     #[tauri::command]
     pub fn character_create(
         state: State<'_, AppState>,
@@ -1091,10 +1278,15 @@ mod tests {
         db,
         domain::{
             character::CreateCharacterInput,
-            project::{ProjectStatus, UpdateProjectInput},
+            project::{CreateProjectInput, ProjectStatus, UpdateProjectInput},
+            project_memory::{
+                CreateCanonRuleInput, CreateStoryFactInput, ProjectMemoryListFilter,
+                UpdateCanonRuleInput, UpdateStoryFactInput,
+            },
         },
         error::AppError,
         orchestration::OrchestrationRequest,
+        project_memory::{repository::ProjectMemoryRepository, service::ProjectMemoryService},
         projects::{repository::ProjectRepository, service::ProjectService},
         provider::{
             EphemeralCredentialStore, GenerateRequest, MockProvider, ModelProfile, ModelRef,
@@ -1486,5 +1678,91 @@ mod tests {
         assert!(source.contains("pub fn user_profile_update"));
         assert!(source.contains("pub fn user_preferences_update"));
         assert!(source.contains("expected_revision: u64"));
+    }
+
+    #[test]
+    fn project_memory_command_helpers_preserve_typed_payloads_and_revisions() {
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let memory = ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Memory commands".into(),
+                description: None,
+            })
+            .unwrap();
+
+        let fact = create_story_fact(
+            &memory,
+            project.id.clone(),
+            CreateStoryFactInput {
+                title: "  Dawn  ".into(),
+                content: "  The bells ring.  ".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(fact.title, "Dawn");
+        assert_eq!(
+            list_story_facts(
+                &memory,
+                project.id.clone(),
+                ProjectMemoryListFilter::default()
+            )
+            .unwrap()
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_story_fact(&memory, fact.id.clone()).unwrap().revision,
+            1
+        );
+
+        let updated = update_story_fact(
+            &memory,
+            fact.id.clone(),
+            UpdateStoryFactInput {
+                title: "Morning".into(),
+                content: "The bells ring twice.".into(),
+            },
+            1,
+        )
+        .unwrap();
+        assert_eq!(updated.revision, 2);
+        let archived = archive_story_fact(&memory, fact.id, 2).unwrap();
+        assert_eq!(
+            archived.status,
+            crate::domain::project_memory::ProjectMemoryStatus::Archived
+        );
+
+        let rule = create_canon_rule(
+            &memory,
+            project.id.clone(),
+            CreateCanonRuleInput {
+                title: "  Time  ".into(),
+                rule: "  One day passes.  ".into(),
+                scope: "  World  ".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            get_canon_rule(&memory, rule.id.clone()).unwrap().revision,
+            1
+        );
+        let updated_rule = update_canon_rule(
+            &memory,
+            rule.id.clone(),
+            UpdateCanonRuleInput {
+                title: "Time".into(),
+                rule: "Two days pass.".into(),
+                scope: "World".into(),
+            },
+            1,
+        )
+        .unwrap();
+        assert_eq!(updated_rule.revision, 2);
+        assert_eq!(archive_canon_rule(&memory, rule.id, 2).unwrap().revision, 3);
     }
 }

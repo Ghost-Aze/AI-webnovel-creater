@@ -24,6 +24,7 @@ pub struct AppState {
     pub memory_tool_service: memory_tools::MemoryToolService,
     pub manuscript_service: manuscripts::service::ManuscriptService,
     pub manuscript_proposal_service: manuscript_proposals::service::ManuscriptProposalService,
+    pub project_memory_service: project_memory::service::ProjectMemoryService,
     pub project_service: projects::service::ProjectService,
     pub provider_registry: provider::ProviderRegistry,
     pub provider_runtime: provider::ProviderRuntime,
@@ -85,6 +86,10 @@ pub fn run() {
                     ),
                     projects::repository::ProjectRepository::new(database.clone()),
                 );
+            let project_memory_service = project_memory::service::ProjectMemoryService::new(
+                project_memory::repository::ProjectMemoryRepository::new(database.clone()),
+                projects::repository::ProjectRepository::new(database.clone()),
+            );
             let context_source =
                 context::ServiceContextSource::new(service.clone(), character_service.clone());
             let provider_runtime =
@@ -101,6 +106,7 @@ pub fn run() {
                 memory_tool_service,
                 manuscript_service,
                 manuscript_proposal_service,
+                project_memory_service,
                 project_service: service,
                 provider_registry,
                 provider_runtime,
@@ -142,6 +148,16 @@ pub fn run() {
             commands::manuscript_proposal_get,
             commands::manuscript_proposal_promote,
             commands::manuscript_proposal_reject,
+            commands::story_fact_create,
+            commands::story_fact_list,
+            commands::story_fact_get,
+            commands::story_fact_update,
+            commands::story_fact_archive,
+            commands::canon_rule_create,
+            commands::canon_rule_list,
+            commands::canon_rule_get,
+            commands::canon_rule_update,
+            commands::canon_rule_archive,
             commands::character_create,
             commands::character_list,
             commands::character_get,
