@@ -689,6 +689,9 @@ impl CharacterRepository {
                 transaction.commit()?;
                 Ok(revision)
             }
+            MemoryEntityType::StoryFact | MemoryEntityType::CanonRule => {
+                Err(AppError::InvalidProposal)
+            }
         }
     }
 }

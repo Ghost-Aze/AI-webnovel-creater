@@ -45,6 +45,10 @@ const MIGRATIONS: &[Migration] = &[
         name: "0008_create_user_profile_preferences.sql",
         sql: include_str!("../../migrations/0008_create_user_profile_preferences.sql"),
     },
+    Migration {
+        name: "0009_project_memory.sql",
+        sql: include_str!("../../migrations/0009_project_memory.sql"),
+    },
 ];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;
@@ -183,6 +187,73 @@ mod tests {
             guard
                 .query_row::<i64, _, _>(
                     "SELECT COUNT(*) FROM _migrations WHERE name = '0008_create_user_profile_preferences.sql'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn project_memory_migration_is_idempotent_and_preserves_revision_indexes() {
+        let connection = in_memory().expect("in-memory database should initialize");
+        let guard = connection.lock().expect("connection lock should succeed");
+
+        guard
+            .execute(
+                "INSERT INTO projects (id, name, description, status, created_at, updated_at)
+                 VALUES ('project', 'Project', '', 'active', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .expect("legacy project should exist");
+        guard
+            .execute(
+                "INSERT INTO memory_revisions
+                 (id, project_id, entity_type, entity_id, revision, operation, actor_type,
+                  actor_id, base_revision, previous_value, new_value, source_type, source_id, created_at)
+                 VALUES ('legacy-revision', 'project', 'character', 'character', 1, 'create',
+                         'user', NULL, 0, NULL, '{}', 'manual', NULL, '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .expect("legacy revision should remain insertable");
+        guard
+            .execute(
+                "INSERT INTO memory_proposals
+                 (id, project_id, entity_type, entity_id, operation, payload, base_revision,
+                  status, actor_type, actor_id, created_at, updated_at)
+                 VALUES ('legacy-proposal', 'project', 'character', 'character', 'update',
+                         '{}', 1, 'draft', 'ai', NULL, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .expect("legacy proposal should remain insertable");
+
+        run_migrations(&guard).expect("running migrations twice should succeed");
+
+        assert_eq!(
+            guard
+                .query_row::<i64, _, _>(
+                    "SELECT COUNT(*) FROM story_facts",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            guard
+                .query_row::<String, _, _>(
+                    "SELECT entity_type FROM memory_revisions WHERE id = 'legacy-revision'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            "character"
+        );
+        assert_eq!(
+            guard
+                .query_row::<i64, _, _>(
+                    "SELECT COUNT(*) FROM _migrations WHERE name = '0009_project_memory.sql'",
                     [],
                     |row| row.get(0),
                 )

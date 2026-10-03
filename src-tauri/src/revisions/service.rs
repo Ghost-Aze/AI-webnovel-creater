@@ -148,6 +148,9 @@ impl RevisionService {
                 self.characters
                     .restore_state(&snapshot, expected_revision, target_revision)
             }
+            MemoryEntityType::StoryFact | MemoryEntityType::CanonRule => {
+                Err(AppError::InvalidProposal)
+            }
         }
     }
 

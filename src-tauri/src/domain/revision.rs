@@ -34,6 +34,8 @@ impl TryFrom<&str> for CanonStatus {
 pub enum MemoryEntityType {
     Character,
     CharacterState,
+    StoryFact,
+    CanonRule,
 }
 
 impl MemoryEntityType {
@@ -41,6 +43,8 @@ impl MemoryEntityType {
         match self {
             Self::Character => "character",
             Self::CharacterState => "character_state",
+            Self::StoryFact => "story_fact",
+            Self::CanonRule => "canon_rule",
         }
     }
 }

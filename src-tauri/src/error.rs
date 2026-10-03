@@ -21,6 +21,9 @@ pub enum AppError {
     #[serde(rename = "archived_chapter")]
     #[error("The chapter is archived and cannot be updated.")]
     ArchivedChapter,
+    #[serde(rename = "archived_memory")]
+    #[error("Archived project memory cannot be updated.")]
+    ArchivedMemory,
     #[serde(rename = "duplicate_name")]
     #[error("A character with this name already exists in the project.")]
     DuplicateName,
@@ -78,6 +81,7 @@ impl AppError {
             Self::ArchivedProject => "archived_project",
             Self::ArchivedCharacter => "archived_character",
             Self::ArchivedChapter => "archived_chapter",
+            Self::ArchivedMemory => "archived_memory",
             Self::DuplicateName => "duplicate_name",
             Self::DuplicateChapterNumber => "duplicate_chapter_number",
             Self::InvalidStatus => "invalid_status",

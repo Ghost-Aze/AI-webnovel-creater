@@ -270,6 +270,8 @@ fn parse_entity_type(value: String) -> rusqlite::Result<MemoryEntityType> {
     match value.as_str() {
         "character" => Ok(MemoryEntityType::Character),
         "character_state" => Ok(MemoryEntityType::CharacterState),
+        "story_fact" => Ok(MemoryEntityType::StoryFact),
+        "canon_rule" => Ok(MemoryEntityType::CanonRule),
         _ => Err(enum_error(&value)),
     }
 }
