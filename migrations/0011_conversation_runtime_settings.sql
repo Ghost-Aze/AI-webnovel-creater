@@ -8,4 +8,3 @@ CREATE TABLE IF NOT EXISTS conversation_runtime_settings (
     temperature REAL CHECK (temperature IS NULL OR (temperature >= 0.0 AND temperature <= 2.0)),
     updated_at TEXT NOT NULL
 );
-
