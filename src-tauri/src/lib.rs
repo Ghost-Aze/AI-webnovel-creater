@@ -9,8 +9,8 @@ pub mod manuscript_proposals;
 pub mod manuscripts;
 pub mod memory_tools;
 pub mod orchestration;
-pub mod projects;
 pub mod project_memory;
+pub mod projects;
 pub mod provider;
 pub mod revisions;
 pub mod users;
@@ -70,6 +70,7 @@ pub fn run() {
             let proposal_service = revisions::service::ProposalService::new(
                 revisions::repository::RevisionRepository::new(database.clone()),
                 characters::repository::CharacterRepository::new(database.clone()),
+                project_memory::repository::ProjectMemoryRepository::new(database.clone()),
             );
             let memory_tool_service =
                 memory_tools::MemoryToolService::new(proposal_service.clone());

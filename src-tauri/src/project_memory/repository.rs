@@ -6,7 +6,10 @@ use crate::{
     domain::{
         project::{new_id, now_utc},
         project_memory::{CanonRule, ProjectMemoryListFilter, ProjectMemoryStatus, StoryFact},
-        revision::{ActorType, CanonStatus, MemoryEntityType, MemoryRevision, RevisionOperation},
+        revision::{
+            ActorType, CanonStatus, MemoryEntityType, MemoryProposal, MemoryRevision,
+            RevisionOperation,
+        },
     },
     error::{AppError, AppResult},
     revisions::repository::RevisionRepository,
@@ -428,6 +431,234 @@ impl ProjectMemoryRepository {
         Ok(current)
     }
 
+    pub fn promote_story_fact_create(
+        &self,
+        fact: &StoryFact,
+        proposal: &MemoryProposal,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        ensure_project_active_tx(&transaction, &fact.project_id)?;
+        transaction.execute(
+            "INSERT INTO story_facts
+             (id, project_id, title, content, status, canon_status, revision, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                fact.id,
+                fact.project_id,
+                fact.title,
+                fact.content,
+                fact.status.as_str(),
+                fact.canon_status.as_str(),
+                fact.revision as i64,
+                fact.created_at,
+                fact.updated_at,
+            ],
+        )?;
+        let revision = build_revision_with_actor(
+            &fact.project_id,
+            MemoryEntityType::StoryFact,
+            &fact.id,
+            fact.revision,
+            RevisionOperation::Promote,
+            proposal.base_revision,
+            None,
+            fact,
+            proposal.actor_type,
+            proposal.actor_id.as_deref(),
+            "proposal",
+            Some(&proposal.id),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        accept_proposal(&transaction, proposal, &fact.id)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
+    pub fn promote_story_fact_update(
+        &self,
+        id: &str,
+        title: &str,
+        content: &str,
+        expected_revision: u64,
+        proposal: &MemoryProposal,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, title, content, status, canon_status, revision,
+                        created_at, updated_at
+                 FROM story_facts WHERE id = ?1",
+                [id],
+                map_story_fact,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)?;
+        ensure_mutable_memory(
+            &transaction,
+            &existing.project_id,
+            existing.status,
+            existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
+        let mut current = existing.clone();
+        current.title = title.to_string();
+        current.content = content.to_string();
+        current.revision += 1;
+        current.updated_at = now_utc();
+        let changed = transaction.execute(
+            "UPDATE story_facts SET title = ?1, content = ?2, revision = ?3, updated_at = ?4
+             WHERE id = ?5 AND revision = ?6 AND status = 'active'",
+            params![
+                current.title,
+                current.content,
+                current.revision as i64,
+                current.updated_at,
+                id,
+                expected_revision as i64,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
+        let revision = build_revision_with_actor(
+            &current.project_id,
+            MemoryEntityType::StoryFact,
+            id,
+            current.revision,
+            RevisionOperation::Promote,
+            expected_revision,
+            Some(&existing),
+            &current,
+            proposal.actor_type,
+            proposal.actor_id.as_deref(),
+            "proposal",
+            Some(&proposal.id),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        accept_proposal(&transaction, proposal, id)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
+    pub fn promote_canon_rule_create(
+        &self,
+        rule: &CanonRule,
+        proposal: &MemoryProposal,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        ensure_project_active_tx(&transaction, &rule.project_id)?;
+        transaction.execute(
+            "INSERT INTO canon_rules
+             (id, project_id, title, rule, scope, status, canon_status, revision, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                rule.id,
+                rule.project_id,
+                rule.title,
+                rule.rule,
+                rule.scope,
+                rule.status.as_str(),
+                rule.canon_status.as_str(),
+                rule.revision as i64,
+                rule.created_at,
+                rule.updated_at,
+            ],
+        )?;
+        let revision = build_revision_with_actor(
+            &rule.project_id,
+            MemoryEntityType::CanonRule,
+            &rule.id,
+            rule.revision,
+            RevisionOperation::Promote,
+            proposal.base_revision,
+            None,
+            rule,
+            proposal.actor_type,
+            proposal.actor_id.as_deref(),
+            "proposal",
+            Some(&proposal.id),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        accept_proposal(&transaction, proposal, &rule.id)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
+    pub fn promote_canon_rule_update(
+        &self,
+        id: &str,
+        title: &str,
+        rule: &str,
+        scope: &str,
+        expected_revision: u64,
+        proposal: &MemoryProposal,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, title, rule, scope, status, canon_status, revision,
+                        created_at, updated_at
+                 FROM canon_rules WHERE id = ?1",
+                [id],
+                map_canon_rule,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)?;
+        ensure_mutable_memory(
+            &transaction,
+            &existing.project_id,
+            existing.status,
+            existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
+        let mut current = existing.clone();
+        current.title = title.to_string();
+        current.rule = rule.to_string();
+        current.scope = scope.to_string();
+        current.revision += 1;
+        current.updated_at = now_utc();
+        let changed = transaction.execute(
+            "UPDATE canon_rules SET title = ?1, rule = ?2, scope = ?3, revision = ?4, updated_at = ?5
+             WHERE id = ?6 AND revision = ?7 AND status = 'active'",
+            params![
+                current.title,
+                current.rule,
+                current.scope,
+                current.revision as i64,
+                current.updated_at,
+                id,
+                expected_revision as i64,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
+        let revision = build_revision_with_actor(
+            &current.project_id,
+            MemoryEntityType::CanonRule,
+            id,
+            current.revision,
+            RevisionOperation::Promote,
+            expected_revision,
+            Some(&existing),
+            &current,
+            proposal.actor_type,
+            proposal.actor_id.as_deref(),
+            "proposal",
+            Some(&proposal.id),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        accept_proposal(&transaction, proposal, id)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
     pub fn restore_story_fact(
         &self,
         snapshot: &StoryFact,
@@ -446,7 +677,14 @@ impl ProjectMemoryRepository {
             )
             .optional()?
             .ok_or(AppError::NotFound)?;
-        ensure_mutable_memory(&transaction, &existing.project_id, existing.status, existing.canon_status, existing.revision, expected_revision)?;
+        ensure_mutable_memory(
+            &transaction,
+            &existing.project_id,
+            existing.status,
+            existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
         let mut current = snapshot.clone();
         current.revision = expected_revision + 1;
         current.updated_at = now_utc();
@@ -503,7 +741,14 @@ impl ProjectMemoryRepository {
             )
             .optional()?
             .ok_or(AppError::NotFound)?;
-        ensure_mutable_memory(&transaction, &existing.project_id, existing.status, existing.canon_status, existing.revision, expected_revision)?;
+        ensure_mutable_memory(
+            &transaction,
+            &existing.project_id,
+            existing.status,
+            existing.canon_status,
+            existing.revision,
+            expected_revision,
+        )?;
         let mut current = snapshot.clone();
         current.revision = expected_revision + 1;
         current.updated_at = now_utc();
@@ -698,6 +943,38 @@ fn ensure_active_for_canon_status(
     Ok(())
 }
 
+fn ensure_project_active_tx(transaction: &Transaction<'_>, project_id: &str) -> AppResult<()> {
+    let status: String = transaction
+        .query_row(
+            "SELECT status FROM projects WHERE id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(AppError::NotFound)?;
+    if status == "archived" {
+        return Err(AppError::ArchivedProject);
+    }
+    Ok(())
+}
+
+fn accept_proposal(
+    transaction: &Transaction<'_>,
+    proposal: &MemoryProposal,
+    entity_id: &str,
+) -> AppResult<()> {
+    let changed = transaction.execute(
+        "UPDATE memory_proposals
+         SET entity_id = ?1, status = 'accepted', updated_at = ?2
+         WHERE id = ?3 AND project_id = ?4 AND status = 'draft'",
+        params![entity_id, now_utc(), proposal.id, proposal.project_id],
+    )?;
+    if changed != 1 {
+        return Err(AppError::InvalidProposal);
+    }
+    Ok(())
+}
+
 fn map_story_fact(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoryFact> {
     Ok(StoryFact {
         id: row.get(0)?,
@@ -758,6 +1035,36 @@ fn build_revision<T: Serialize>(
     source_type: &str,
     source_id: Option<&str>,
 ) -> AppResult<MemoryRevision> {
+    build_revision_with_actor(
+        project_id,
+        entity_type,
+        entity_id,
+        revision,
+        operation,
+        base_revision,
+        previous_value,
+        new_value,
+        ActorType::User,
+        None,
+        source_type,
+        source_id,
+    )
+}
+
+fn build_revision_with_actor<T: Serialize>(
+    project_id: &str,
+    entity_type: MemoryEntityType,
+    entity_id: &str,
+    revision: u64,
+    operation: RevisionOperation,
+    base_revision: u64,
+    previous_value: Option<&T>,
+    new_value: &T,
+    actor_type: ActorType,
+    actor_id: Option<&str>,
+    source_type: &str,
+    source_id: Option<&str>,
+) -> AppResult<MemoryRevision> {
     Ok(MemoryRevision {
         id: new_id(),
         project_id: project_id.to_string(),
@@ -765,8 +1072,8 @@ fn build_revision<T: Serialize>(
         entity_id: entity_id.to_string(),
         revision,
         operation,
-        actor_type: ActorType::User,
-        actor_id: None,
+        actor_type,
+        actor_id: actor_id.map(str::to_string),
         base_revision,
         previous_value: previous_value
             .map(serde_json::to_value)

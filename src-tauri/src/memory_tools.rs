@@ -64,6 +64,7 @@ mod tests {
         domain::{
             character::CreateCharacterInput, project::CreateProjectInput, revision::ProposalStatus,
         },
+        project_memory::repository::ProjectMemoryRepository,
         projects::{repository::ProjectRepository, service::ProjectService},
         revisions::{repository::RevisionRepository, service::ProposalService},
     };
@@ -74,7 +75,11 @@ mod tests {
         let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
         let characters = CharacterService::new(CharacterRepository::new(connection.clone()));
         let revisions = RevisionRepository::new(connection.clone());
-        let proposals = ProposalService::new(revisions, CharacterRepository::new(connection));
+        let proposals = ProposalService::new(
+            revisions,
+            CharacterRepository::new(connection.clone()),
+            ProjectMemoryRepository::new(connection),
+        );
         let project = projects
             .create(CreateProjectInput {
                 name: "Tool project".into(),

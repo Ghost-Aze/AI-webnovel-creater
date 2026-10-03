@@ -158,7 +158,7 @@ fn required_text(value: String, label: &str) -> AppResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{error::AppError, domain::revision::MemoryEntityType};
+    use crate::{domain::revision::MemoryEntityType, error::AppError};
 
     use super::*;
 

@@ -17,10 +17,8 @@ fn services() -> (ProjectService, ProjectMemoryService) {
     let connection = db::in_memory().expect("in-memory database should initialize");
     let project_repository = ProjectRepository::new(connection.clone());
     let projects = ProjectService::new(project_repository.clone());
-    let memory = ProjectMemoryService::new(
-        ProjectMemoryRepository::new(connection),
-        project_repository,
-    );
+    let memory =
+        ProjectMemoryService::new(ProjectMemoryRepository::new(connection), project_repository);
     (projects, memory)
 }
 
@@ -161,7 +159,10 @@ fn canon_rules_and_project_policies_are_typed() {
     assert_eq!(updated.revision, 2);
 
     projects.archive(&project.id).unwrap();
-    assert_eq!(projects.get(&project.id).unwrap().status, ProjectStatus::Archived);
+    assert_eq!(
+        projects.get(&project.id).unwrap().status,
+        ProjectStatus::Archived
+    );
     assert_eq!(
         memory
             .update_canon_rule(

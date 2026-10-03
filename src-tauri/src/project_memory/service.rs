@@ -2,9 +2,9 @@ use crate::{
     domain::{
         project::ProjectStatus,
         project_memory::{
-            build_canon_rule, build_story_fact, update_canon_rule_fields,
-            update_story_fact_fields, CanonRule, CreateCanonRuleInput, CreateStoryFactInput,
-            ProjectMemoryListFilter, StoryFact, UpdateCanonRuleInput, UpdateStoryFactInput,
+            build_canon_rule, build_story_fact, update_canon_rule_fields, update_story_fact_fields,
+            CanonRule, CreateCanonRuleInput, CreateStoryFactInput, ProjectMemoryListFilter,
+            StoryFact, UpdateCanonRuleInput, UpdateStoryFactInput,
         },
     },
     error::{AppError, AppResult},

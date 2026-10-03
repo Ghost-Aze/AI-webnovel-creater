@@ -5,10 +5,14 @@ use webnovel_ai_studio_lib::{
     domain::{
         character::{CreateCharacterInput, UpdateCharacterInput},
         project::CreateProjectInput,
-        revision::{ActorType, CanonStatus, MemoryEntityType, ProposalStatus, RevisionOperation},
+        project_memory::{CreateStoryFactInput, UpdateStoryFactInput},
+        revision::{
+            ActorType, CanonStatus, CreateProposalInput, MemoryEntityType, ProposalStatus,
+            RevisionOperation,
+        },
     },
     error::AppError,
-    project_memory::repository::ProjectMemoryRepository,
+    project_memory::{repository::ProjectMemoryRepository, service::ProjectMemoryService},
     projects::{repository::ProjectRepository, service::ProjectService},
     revisions::{
         repository::RevisionRepository,
@@ -19,6 +23,7 @@ use webnovel_ai_studio_lib::{
 struct Services {
     projects: ProjectService,
     characters: CharacterService,
+    memory: ProjectMemoryService,
     revisions: RevisionService,
     proposals: ProposalService,
 }
@@ -26,9 +31,12 @@ struct Services {
 fn services() -> Services {
     let connection = db::in_memory().expect("in-memory database should initialize");
     let character_repository = CharacterRepository::new(connection.clone());
+    let project_repository = ProjectRepository::new(connection.clone());
+    let project_memory_repository = ProjectMemoryRepository::new(connection.clone());
     Services {
-        projects: ProjectService::new(ProjectRepository::new(connection.clone())),
+        projects: ProjectService::new(project_repository.clone()),
         characters: CharacterService::new(character_repository.clone()),
+        memory: ProjectMemoryService::new(project_memory_repository.clone(), project_repository),
         revisions: RevisionService::new(
             RevisionRepository::new(connection.clone()),
             character_repository.clone(),
@@ -37,6 +45,7 @@ fn services() -> Services {
         proposals: ProposalService::new(
             RevisionRepository::new(connection.clone()),
             character_repository,
+            project_memory_repository,
         ),
     }
 }
@@ -60,6 +69,155 @@ fn character(services: &Services) -> webnovel_ai_studio_lib::domain::character::
             },
         )
         .unwrap()
+}
+
+#[test]
+fn project_memory_create_proposals_promote_atomically_and_record_id() {
+    let services = services();
+    let project = services
+        .projects
+        .create(CreateProjectInput {
+            name: "Project memory proposals".into(),
+            description: None,
+        })
+        .unwrap();
+
+    let fact_proposal = services
+        .proposals
+        .create(CreateProposalInput {
+            project_id: project.id.clone(),
+            entity_type: MemoryEntityType::StoryFact,
+            entity_id: None,
+            operation: RevisionOperation::Create,
+            payload: serde_json::json!({
+                "title": "The gate",
+                "content": "Opens at dawn."
+            }),
+            base_revision: 0,
+            actor_type: ActorType::Ai,
+            actor_id: Some("developer-chat".into()),
+        })
+        .unwrap();
+    assert!(services
+        .memory
+        .list_story_facts(&project.id, Default::default())
+        .unwrap()
+        .is_empty());
+
+    let created_revision = services.proposals.promote(&fact_proposal.id, 0).unwrap();
+    assert_eq!(created_revision.entity_type, MemoryEntityType::StoryFact);
+    assert_eq!(created_revision.revision, 1);
+    let accepted = services.proposals.get(&fact_proposal.id).unwrap();
+    let entity_id = accepted.entity_id.clone().expect("create id is recorded");
+    assert_eq!(
+        services.memory.get_story_fact(&entity_id).unwrap().revision,
+        1
+    );
+    assert_eq!(
+        services.proposals.promote(&fact_proposal.id, 0),
+        Err(AppError::InvalidProposal)
+    );
+
+    let rule_proposal = services
+        .proposals
+        .create(CreateProposalInput {
+            project_id: project.id,
+            entity_type: MemoryEntityType::CanonRule,
+            entity_id: None,
+            operation: RevisionOperation::Create,
+            payload: serde_json::json!({
+                "title": "Magic",
+                "rule": "It costs memory.",
+                "scope": "world"
+            }),
+            base_revision: 0,
+            actor_type: ActorType::Ai,
+            actor_id: None,
+        })
+        .unwrap();
+    let rule_revision = services.proposals.promote(&rule_proposal.id, 0).unwrap();
+    assert_eq!(rule_revision.entity_type, MemoryEntityType::CanonRule);
+    let accepted_rule = services.proposals.get(&rule_proposal.id).unwrap();
+    let rule_id = accepted_rule.entity_id.expect("rule create id is recorded");
+    assert_eq!(
+        services.memory.get_canon_rule(&rule_id).unwrap().revision,
+        1
+    );
+}
+
+#[test]
+fn project_memory_update_proposals_validate_payload_and_stale_base() {
+    let services = services();
+    let project = services
+        .projects
+        .create(CreateProjectInput {
+            name: "Project memory update proposals".into(),
+            description: None,
+        })
+        .unwrap();
+    let fact = services
+        .memory
+        .create_story_fact(
+            project.id.clone(),
+            CreateStoryFactInput {
+                title: "Fact".into(),
+                content: "Original".into(),
+            },
+        )
+        .unwrap();
+    let proposal = services
+        .proposals
+        .create(CreateProposalInput {
+            project_id: project.id.clone(),
+            entity_type: MemoryEntityType::StoryFact,
+            entity_id: Some(fact.id.clone()),
+            operation: RevisionOperation::Update,
+            payload: serde_json::json!({
+                "title": "Fact",
+                "content": "Proposed"
+            }),
+            base_revision: 1,
+            actor_type: ActorType::Ai,
+            actor_id: None,
+        })
+        .unwrap();
+    services
+        .memory
+        .update_story_fact(
+            &fact.id,
+            UpdateStoryFactInput {
+                title: "Fact".into(),
+                content: "Newer".into(),
+            },
+            1,
+        )
+        .unwrap();
+    assert_eq!(
+        services.proposals.promote(&proposal.id, 1),
+        Err(AppError::Conflict)
+    );
+    assert_eq!(
+        services.memory.get_story_fact(&fact.id).unwrap().content,
+        "Newer"
+    );
+    assert_eq!(
+        services.proposals.get(&proposal.id).unwrap().status,
+        ProposalStatus::Draft
+    );
+
+    assert_eq!(
+        services.proposals.create(CreateProposalInput {
+            project_id: project.id,
+            entity_type: MemoryEntityType::CanonRule,
+            entity_id: Some(fact.id),
+            operation: RevisionOperation::Create,
+            payload: serde_json::json!({"title": "bad"}),
+            base_revision: 0,
+            actor_type: ActorType::Ai,
+            actor_id: None,
+        }),
+        Err(AppError::InvalidProposal)
+    );
 }
 
 fn update_payload(name: &str) -> serde_json::Value {

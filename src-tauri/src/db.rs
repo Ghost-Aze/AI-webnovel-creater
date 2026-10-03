@@ -232,11 +232,7 @@ mod tests {
 
         assert_eq!(
             guard
-                .query_row::<i64, _, _>(
-                    "SELECT COUNT(*) FROM story_facts",
-                    [],
-                    |row| row.get(0),
-                )
+                .query_row::<i64, _, _>("SELECT COUNT(*) FROM story_facts", [], |row| row.get(0),)
                 .unwrap(),
             0
         );

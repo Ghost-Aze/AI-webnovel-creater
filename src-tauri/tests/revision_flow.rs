@@ -9,8 +9,8 @@ use webnovel_ai_studio_lib::{
         revision::{CanonStatus, MemoryEntityType, RevisionOperation},
     },
     error::AppError,
-    projects::{repository::ProjectRepository, service::ProjectService},
     project_memory::{repository::ProjectMemoryRepository, service::ProjectMemoryService},
+    projects::{repository::ProjectRepository, service::ProjectService},
     revisions::{repository::RevisionRepository, service::RevisionService},
 };
 
@@ -326,7 +326,11 @@ fn project_memory_restore_and_canon_status_are_forward_revision_safe() {
     assert_eq!(restored.operation, RevisionOperation::Restore);
     assert_eq!(restored.new_value["content"], "Opens at dawn.");
     assert_eq!(
-        services.memory.get_story_fact(&created.id).unwrap().revision,
+        services
+            .memory
+            .get_story_fact(&created.id)
+            .unwrap()
+            .revision,
         3
     );
     assert_eq!(
