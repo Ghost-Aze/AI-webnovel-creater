@@ -1,3 +1,4 @@
+import type { MemoryEntityType } from "./revision";
 import type { ModelRef } from "./provider";
 
 export type ContextTask =
@@ -11,7 +12,13 @@ export type ContextTask =
   | { custom: string };
 
 export type ContextBlockKind =
-  "system" | "project" | "character" | "character_state" | "working_memory";
+  | "system"
+  | "project"
+  | "story_fact"
+  | "canon_rule"
+  | "character"
+  | "character_state"
+  | "working_memory";
 
 export interface WorkingMemoryBlock {
   id: string;
@@ -24,11 +31,17 @@ export interface ContextBudget {
   safety_margin_tokens: number;
 }
 
+export interface ProjectMemoryRef {
+  entity_type: Extract<MemoryEntityType, "story_fact" | "canon_rule">;
+  entity_id: string;
+}
+
 export interface ContextCompileRequest {
   project_id: string;
   task: ContextTask;
   model: ModelRef;
   system_instructions: string;
+  project_memory_refs: ProjectMemoryRef[];
   character_ids: string[];
   include_character_states: boolean;
   working_memory: WorkingMemoryBlock[];

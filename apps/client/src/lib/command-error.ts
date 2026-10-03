@@ -2,6 +2,7 @@ export type CommandErrorCode =
   | "validation"
   | "not_found"
   | "archived_project"
+  | "archived_memory"
   | "archived_character"
   | "archived_chapter"
   | "duplicate_name"
@@ -33,6 +34,7 @@ export class CommandError extends Error {
 const messages: Record<Exclude<CommandErrorCode, "validation">, string> = {
   not_found: "The project could not be found.",
   archived_project: "Archived projects cannot be edited.",
+  archived_memory: "Archived project memory cannot be edited.",
   archived_character: "Archived characters cannot be edited.",
   archived_chapter: "Archived chapters cannot be edited.",
   duplicate_name: "A character with this name already exists in the project.",

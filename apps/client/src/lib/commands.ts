@@ -24,6 +24,15 @@ import type {
 } from "../types/project";
 import type { CompiledContext, ContextCompileRequest } from "../types/context";
 import type {
+  CanonRule,
+  CreateCanonRuleInput,
+  CreateStoryFactInput,
+  ProjectMemoryListFilter,
+  StoryFact,
+  UpdateCanonRuleInput,
+  UpdateStoryFactInput,
+} from "../types/project-memory";
+import type {
   AppendMessageInput,
   Conversation,
   ConversationListFilter,
@@ -333,6 +342,92 @@ export function archiveCharacter(
   expectedRevision: number,
 ): Promise<Character> {
   return call<Character>("character_archive", {
+    id,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function createStoryFact(
+  projectId: string,
+  input: CreateStoryFactInput,
+): Promise<StoryFact> {
+  return call<StoryFact>("story_fact_create", { project_id: projectId, input });
+}
+
+export function listStoryFacts(
+  projectId: string,
+  filter: ProjectMemoryListFilter = { include_archived: false },
+): Promise<StoryFact[]> {
+  return call<StoryFact[]>("story_fact_list", {
+    project_id: projectId,
+    filter,
+  });
+}
+
+export function getStoryFact(id: string): Promise<StoryFact> {
+  return call<StoryFact>("story_fact_get", { id });
+}
+
+export function updateStoryFact(
+  id: string,
+  input: UpdateStoryFactInput,
+  expectedRevision: number,
+): Promise<StoryFact> {
+  return call<StoryFact>("story_fact_update", {
+    id,
+    input,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function archiveStoryFact(
+  id: string,
+  expectedRevision: number,
+): Promise<StoryFact> {
+  return call<StoryFact>("story_fact_archive", {
+    id,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function createCanonRule(
+  projectId: string,
+  input: CreateCanonRuleInput,
+): Promise<CanonRule> {
+  return call<CanonRule>("canon_rule_create", { project_id: projectId, input });
+}
+
+export function listCanonRules(
+  projectId: string,
+  filter: ProjectMemoryListFilter = { include_archived: false },
+): Promise<CanonRule[]> {
+  return call<CanonRule[]>("canon_rule_list", {
+    project_id: projectId,
+    filter,
+  });
+}
+
+export function getCanonRule(id: string): Promise<CanonRule> {
+  return call<CanonRule>("canon_rule_get", { id });
+}
+
+export function updateCanonRule(
+  id: string,
+  input: UpdateCanonRuleInput,
+  expectedRevision: number,
+): Promise<CanonRule> {
+  return call<CanonRule>("canon_rule_update", {
+    id,
+    input,
+    expected_revision: expectedRevision,
+  });
+}
+
+export function archiveCanonRule(
+  id: string,
+  expectedRevision: number,
+): Promise<CanonRule> {
+  return call<CanonRule>("canon_rule_archive", {
     id,
     expected_revision: expectedRevision,
   });

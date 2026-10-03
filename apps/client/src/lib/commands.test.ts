@@ -10,20 +10,26 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 import {
   appendConversationMessage,
+  archiveCanonRule,
+  archiveStoryFact,
   chapterChatSend,
+  createCanonRule,
   createCharacter,
   createConversation,
   createChapter,
   createManuscriptProposal,
   createProject,
+  createStoryFact,
   compileContext,
   configureProvider,
   generateProvider,
   getCredentialStoreStatus,
   getCharacterState,
   getConversation,
+  getCanonRule,
   getManuscript,
   getProject,
+  getStoryFact,
   getUserPreferences,
   getUserProfile,
   listConversationMessages,
@@ -33,7 +39,9 @@ import {
   listManuscriptRevisions,
   listModels,
   listMemoryHistory,
+  listCanonRules,
   listProviders,
+  listStoryFacts,
   removeProvider,
   proposeMemoryTool,
   promoteManuscriptProposal,
@@ -45,8 +53,10 @@ import {
   sendDeveloperChat,
   restoreMemory,
   setMemoryCanonStatus,
+  updateCanonRule,
   updateCharacter,
   updateCharacterState,
+  updateStoryFact,
   updateUserPreferences,
   updateUserProfile,
 } from "./commands";
@@ -179,6 +189,82 @@ describe("typed project commands", () => {
     await getCharacterState("character-id");
     expect(invokeMock).toHaveBeenCalledWith("character_state_get", {
       character_id: "character-id",
+    });
+  });
+
+  it("uses typed project memory commands and expected revisions", async () => {
+    const factInput = { title: "Dawn", content: "The bells ring." };
+    const fact = {
+      id: "fact-id",
+      project_id: "project-id",
+      ...factInput,
+      status: "active" as const,
+      canon_status: "canon" as const,
+      revision: 1,
+      created_at: "2026-10-03T00:00:00Z",
+      updated_at: "2026-10-03T00:00:00Z",
+    };
+    invokeMock.mockResolvedValueOnce(fact);
+    await expect(createStoryFact("project-id", factInput)).resolves.toEqual(fact);
+    expect(invokeMock).toHaveBeenCalledWith("story_fact_create", {
+      project_id: "project-id",
+      input: factInput,
+    });
+
+    invokeMock.mockResolvedValueOnce([fact]);
+    await listStoryFacts("project-id", { include_archived: true });
+    expect(invokeMock).toHaveBeenCalledWith("story_fact_list", {
+      project_id: "project-id",
+      filter: { include_archived: true },
+    });
+
+    invokeMock.mockResolvedValueOnce(fact);
+    await getStoryFact("fact-id");
+    expect(invokeMock).toHaveBeenCalledWith("story_fact_get", { id: "fact-id" });
+
+    invokeMock.mockResolvedValueOnce({ ...fact, revision: 2 });
+    await updateStoryFact("fact-id", factInput, 1);
+    expect(invokeMock).toHaveBeenCalledWith("story_fact_update", {
+      id: "fact-id",
+      input: factInput,
+      expected_revision: 1,
+    });
+
+    invokeMock.mockResolvedValueOnce({ ...fact, status: "archived", revision: 3 });
+    await archiveStoryFact("fact-id", 2);
+    expect(invokeMock).toHaveBeenCalledWith("story_fact_archive", {
+      id: "fact-id",
+      expected_revision: 2,
+    });
+
+    const ruleInput = { title: "Time", rule: "Days pass.", scope: "World" };
+    invokeMock.mockResolvedValueOnce({ id: "rule-id" });
+    await createCanonRule("project-id", ruleInput);
+    expect(invokeMock).toHaveBeenCalledWith("canon_rule_create", {
+      project_id: "project-id",
+      input: ruleInput,
+    });
+    invokeMock.mockResolvedValueOnce([]);
+    await listCanonRules("project-id");
+    expect(invokeMock).toHaveBeenCalledWith("canon_rule_list", {
+      project_id: "project-id",
+      filter: { include_archived: false },
+    });
+    invokeMock.mockResolvedValueOnce({ id: "rule-id" });
+    await getCanonRule("rule-id");
+    expect(invokeMock).toHaveBeenCalledWith("canon_rule_get", { id: "rule-id" });
+    invokeMock.mockResolvedValueOnce({ id: "rule-id", revision: 2 });
+    await updateCanonRule("rule-id", ruleInput, 1);
+    expect(invokeMock).toHaveBeenCalledWith("canon_rule_update", {
+      id: "rule-id",
+      input: ruleInput,
+      expected_revision: 1,
+    });
+    invokeMock.mockResolvedValueOnce({ id: "rule-id", revision: 3 });
+    await archiveCanonRule("rule-id", 2);
+    expect(invokeMock).toHaveBeenCalledWith("canon_rule_archive", {
+      id: "rule-id",
+      expected_revision: 2,
     });
   });
 
@@ -408,6 +494,12 @@ describe("typed project commands", () => {
       code: "locked_canon",
       message: "Locked canon cannot be changed.",
     });
+
+    const archivedMemory = normalizeCommandError({ code: "archived_memory" });
+    expect(archivedMemory).toMatchObject({
+      code: "archived_memory",
+      message: "Archived project memory cannot be edited.",
+    });
   });
 
   it("passes expected revisions for character mutations", async () => {
@@ -516,6 +608,7 @@ describe("typed project commands", () => {
       task: "writing",
       model: { provider_id: "mock", model_id: "mock-small" },
       system_instructions: "Write",
+      project_memory_refs: [],
       character_ids: [],
       include_character_states: false,
       working_memory: [],

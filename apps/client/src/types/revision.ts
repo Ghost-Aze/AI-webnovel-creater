@@ -1,6 +1,10 @@
 import type { CanonStatus } from "./character";
 
-export type MemoryEntityType = "character" | "character_state";
+export type MemoryEntityType =
+  | "character"
+  | "character_state"
+  | "story_fact"
+  | "canon_rule";
 export type RevisionOperation =
   "create" | "update" | "archive" | "restore" | "canon_status" | "promote";
 export type ActorType = "user" | "ai" | "system";
