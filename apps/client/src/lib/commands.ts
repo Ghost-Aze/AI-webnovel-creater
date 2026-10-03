@@ -34,6 +34,12 @@ import type {
 } from "../types/project-memory";
 import type {
   AppendMessageInput,
+  ChatRuntimeLoadRequest,
+  ChatRuntimeSettings,
+  ChatRuntimeSettingsInput,
+  ChatRuntimeSnapshot,
+  ChatSendRequest,
+  ChatSendResult,
   Conversation,
   ConversationListFilter,
   ConversationMessage,
@@ -302,6 +308,26 @@ export function appendConversationMessage(
     conversation_id: conversationId,
     input,
   });
+}
+
+export function loadChatRuntime(
+  request: ChatRuntimeLoadRequest,
+): Promise<ChatRuntimeSnapshot> {
+  return call<ChatRuntimeSnapshot>("chat_runtime_load", { request });
+}
+
+export function updateChatRuntime(
+  conversationId: string,
+  input: ChatRuntimeSettingsInput,
+): Promise<ChatRuntimeSettings> {
+  return call<ChatRuntimeSettings>("chat_runtime_update", {
+    conversation_id: conversationId,
+    input,
+  });
+}
+
+export function sendChat(request: ChatSendRequest): Promise<ChatSendResult> {
+  return call<ChatSendResult>("chat_send", { request });
 }
 
 export function chapterChatSend(

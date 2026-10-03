@@ -13,6 +13,7 @@ import {
   archiveCanonRule,
   archiveStoryFact,
   chapterChatSend,
+  loadChatRuntime,
   createCanonRule,
   createCharacter,
   createConversation,
@@ -53,6 +54,7 @@ import {
   saveManuscript,
   runOrchestrator,
   sendDeveloperChat,
+  sendChat,
   restoreMemory,
   setMemoryCanonStatus,
   updateCanonRule,
@@ -63,10 +65,14 @@ import {
   updateUserProfile,
   updateProvider,
   testProvider,
+  updateChatRuntime,
 } from "./commands";
 import { normalizeCommandError } from "./command-error";
 import type { ContextCompileRequest } from "../types/context";
 import type {
+  ChatRuntimeLoadRequest,
+  ChatRuntimeSettingsInput,
+  ChatSendRequest,
   CreateConversationInput,
   DeveloperChatSendRequest,
   MemoryToolRequest,
@@ -405,6 +411,55 @@ describe("typed project commands", () => {
     expect(invokeMock).toHaveBeenCalledWith("memory_tool_propose", {
       request: memoryRequest,
     });
+  });
+
+  it("uses exact snake_case payloads for the shared chat runtime", async () => {
+    invokeMock.mockReset();
+    try {
+      const loadRequest: ChatRuntimeLoadRequest = {
+      project_id: "project-id",
+      chapter_id: null,
+      conversation_id: null,
+      kind: "developer_chat",
+      };
+      const runtimeSettings: ChatRuntimeSettingsInput = {
+      assistant_id: "writing-coach",
+      provider_id: "mock",
+      model_id: "writer",
+      quality: "deep",
+      temperature: 0.7,
+      };
+      const sendRequest: ChatSendRequest = {
+      conversation_id: "conversation-id",
+      task: "developer_chat",
+      runtime: runtimeSettings,
+      system_instructions: "Stay within canon.",
+      character_ids: [],
+      include_character_states: false,
+      context_budget: { output_reserve_tokens: null, safety_margin_tokens: 0 },
+      message: "Draft the next scene.",
+      retry_attempt: false,
+      };
+
+      invokeMock.mockResolvedValue({});
+      await loadChatRuntime(loadRequest);
+      expect(invokeMock).toHaveBeenCalledWith("chat_runtime_load", {
+        request: loadRequest,
+      });
+
+      await updateChatRuntime("conversation-id", runtimeSettings);
+      expect(invokeMock).toHaveBeenCalledWith("chat_runtime_update", {
+        conversation_id: "conversation-id",
+        input: runtimeSettings,
+      });
+
+      await sendChat(sendRequest);
+      expect(invokeMock).toHaveBeenCalledWith("chat_send", {
+        request: sendRequest,
+      });
+    } finally {
+      invokeMock.mockReset();
+    }
   });
 
   it("uses typed chapter and manuscript command payloads", async () => {

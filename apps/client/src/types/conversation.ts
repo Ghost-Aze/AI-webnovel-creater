@@ -1,6 +1,7 @@
 import type { ContextBudget } from "./context";
 import type {
   ModelRef,
+  ModelProfile,
   ModelTask,
   ProviderCapabilities,
   QualityMode,
@@ -70,6 +71,67 @@ export interface DeveloperChatSendResult {
   assistant_message: ConversationMessage;
   orchestration: OrchestrationResult;
 }
+
+export interface ChatRuntimeSettings {
+  assistant_id: string;
+  provider_id: string | null;
+  model_id: string | null;
+  quality: QualityMode;
+  temperature: number | null;
+  updated_at: string;
+}
+
+export interface ChatRuntimeSettingsInput {
+  assistant_id: string;
+  provider_id: string | null;
+  model_id: string | null;
+  quality: QualityMode;
+  temperature: number | null;
+}
+
+export interface ChatRuntimeLoadRequest {
+  project_id: string;
+  chapter_id: string | null;
+  conversation_id: string | null;
+  kind: ConversationKind;
+}
+
+export interface ChatAssistantDescriptor {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface ChatRuntimeSnapshot {
+  conversations: Conversation[];
+  conversation: Conversation | null;
+  messages: ConversationMessage[];
+  settings: ChatRuntimeSettings;
+  assistants: ChatAssistantDescriptor[];
+  models: ModelProfile[];
+}
+
+export interface ChatSendRequest {
+  conversation_id: string;
+  task: ModelTask;
+  runtime: ChatRuntimeSettingsInput;
+  system_instructions: string;
+  character_ids: string[];
+  include_character_states: boolean;
+  context_budget: ContextBudget;
+  message: string;
+  retry_attempt: boolean;
+}
+
+export type ChatSendResult = DeveloperChatSendResult;
+
+export type ChatEvent =
+  | { type: "accepted"; conversation_id: string }
+  | { type: "delta"; conversation_id: string; text: string }
+  | { type: "completed"; result: ChatSendResult }
+  | { type: "retryable_error"; error: unknown }
+  | { type: "terminal_error"; error: unknown }
+  | { type: "cancelled"; conversation_id: string };
 
 export interface MemoryToolUpdateCharacterInput {
   name: string;
