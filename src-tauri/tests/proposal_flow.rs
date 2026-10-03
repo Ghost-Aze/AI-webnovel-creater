@@ -8,6 +8,7 @@ use webnovel_ai_studio_lib::{
         revision::{ActorType, CanonStatus, MemoryEntityType, ProposalStatus, RevisionOperation},
     },
     error::AppError,
+    project_memory::repository::ProjectMemoryRepository,
     projects::{repository::ProjectRepository, service::ProjectService},
     revisions::{
         repository::RevisionRepository,
@@ -31,6 +32,7 @@ fn services() -> Services {
         revisions: RevisionService::new(
             RevisionRepository::new(connection.clone()),
             character_repository.clone(),
+            ProjectMemoryRepository::new(connection.clone()),
         ),
         proposals: ProposalService::new(
             RevisionRepository::new(connection.clone()),

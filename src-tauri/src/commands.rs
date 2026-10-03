@@ -1204,6 +1204,7 @@ mod tests {
         let revision_service = RevisionService::new(
             RevisionRepository::new(connection.clone()),
             character_repository.clone(),
+            crate::project_memory::repository::ProjectMemoryRepository::new(connection.clone()),
         );
         let character_service =
             crate::characters::service::CharacterService::new(character_repository);

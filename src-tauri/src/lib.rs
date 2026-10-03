@@ -65,6 +65,7 @@ pub fn run() {
             let revision_service = revisions::service::RevisionService::new(
                 revisions::repository::RevisionRepository::new(database.clone()),
                 characters::repository::CharacterRepository::new(database.clone()),
+                project_memory::repository::ProjectMemoryRepository::new(database.clone()),
             );
             let proposal_service = revisions::service::ProposalService::new(
                 revisions::repository::RevisionRepository::new(database.clone()),

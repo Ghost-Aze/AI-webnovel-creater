@@ -1,4 +1,4 @@
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, OptionalExtension, Transaction};
 use serde::Serialize;
 
 use crate::{
@@ -427,6 +427,275 @@ impl ProjectMemoryRepository {
         transaction.commit()?;
         Ok(current)
     }
+
+    pub fn restore_story_fact(
+        &self,
+        snapshot: &StoryFact,
+        expected_revision: u64,
+        target_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, title, content, status, canon_status, revision,
+                        created_at, updated_at
+                 FROM story_facts WHERE id = ?1",
+                [&snapshot.id],
+                map_story_fact,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)?;
+        ensure_mutable_memory(&transaction, &existing.project_id, existing.status, existing.canon_status, existing.revision, expected_revision)?;
+        let mut current = snapshot.clone();
+        current.revision = expected_revision + 1;
+        current.updated_at = now_utc();
+        let changed = transaction.execute(
+            "UPDATE story_facts SET title = ?1, content = ?2, status = ?3, canon_status = ?4,
+                    revision = ?5, updated_at = ?6
+             WHERE id = ?7 AND revision = ?8 AND status = 'active'",
+            params![
+                current.title,
+                current.content,
+                current.status.as_str(),
+                current.canon_status.as_str(),
+                current.revision as i64,
+                current.updated_at,
+                current.id,
+                expected_revision as i64,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
+        let revision = build_revision(
+            &current.project_id,
+            MemoryEntityType::StoryFact,
+            &current.id,
+            current.revision,
+            RevisionOperation::Restore,
+            expected_revision,
+            Some(&existing),
+            &current,
+            "restore",
+            Some(&target_revision.to_string()),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
+    pub fn restore_canon_rule(
+        &self,
+        snapshot: &CanonRule,
+        expected_revision: u64,
+        target_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, title, rule, scope, status, canon_status, revision,
+                        created_at, updated_at
+                 FROM canon_rules WHERE id = ?1",
+                [&snapshot.id],
+                map_canon_rule,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)?;
+        ensure_mutable_memory(&transaction, &existing.project_id, existing.status, existing.canon_status, existing.revision, expected_revision)?;
+        let mut current = snapshot.clone();
+        current.revision = expected_revision + 1;
+        current.updated_at = now_utc();
+        let changed = transaction.execute(
+            "UPDATE canon_rules SET title = ?1, rule = ?2, scope = ?3, status = ?4,
+                    canon_status = ?5, revision = ?6, updated_at = ?7
+             WHERE id = ?8 AND revision = ?9 AND status = 'active'",
+            params![
+                current.title,
+                current.rule,
+                current.scope,
+                current.status.as_str(),
+                current.canon_status.as_str(),
+                current.revision as i64,
+                current.updated_at,
+                current.id,
+                expected_revision as i64,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
+        let revision = build_revision(
+            &current.project_id,
+            MemoryEntityType::CanonRule,
+            &current.id,
+            current.revision,
+            RevisionOperation::Restore,
+            expected_revision,
+            Some(&existing),
+            &current,
+            "restore",
+            Some(&target_revision.to_string()),
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
+    pub fn set_story_fact_canon_status(
+        &self,
+        id: &str,
+        status: CanonStatus,
+        expected_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, title, content, status, canon_status, revision,
+                        created_at, updated_at
+                 FROM story_facts WHERE id = ?1",
+                [id],
+                map_story_fact,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)?;
+        ensure_active_for_canon_status(&transaction, &existing.project_id, existing.status)?;
+        if existing.revision != expected_revision {
+            return Err(AppError::Conflict);
+        }
+        let mut current = existing.clone();
+        current.canon_status = status;
+        current.revision += 1;
+        current.updated_at = now_utc();
+        let changed = transaction.execute(
+            "UPDATE story_facts SET canon_status = ?1, revision = ?2, updated_at = ?3
+             WHERE id = ?4 AND revision = ?5 AND status = 'active'",
+            params![
+                current.canon_status.as_str(),
+                current.revision as i64,
+                current.updated_at,
+                id,
+                expected_revision as i64,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
+        let revision = build_revision(
+            &current.project_id,
+            MemoryEntityType::StoryFact,
+            id,
+            current.revision,
+            RevisionOperation::CanonStatus,
+            expected_revision,
+            Some(&existing),
+            &current,
+            "manual",
+            None,
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+
+    pub fn set_canon_rule_canon_status(
+        &self,
+        id: &str,
+        status: CanonStatus,
+        expected_revision: u64,
+    ) -> AppResult<MemoryRevision> {
+        let connection = self.connection.lock()?;
+        let transaction = connection.unchecked_transaction()?;
+        let existing = transaction
+            .query_row(
+                "SELECT id, project_id, title, rule, scope, status, canon_status, revision,
+                        created_at, updated_at
+                 FROM canon_rules WHERE id = ?1",
+                [id],
+                map_canon_rule,
+            )
+            .optional()?
+            .ok_or(AppError::NotFound)?;
+        ensure_active_for_canon_status(&transaction, &existing.project_id, existing.status)?;
+        if existing.revision != expected_revision {
+            return Err(AppError::Conflict);
+        }
+        let mut current = existing.clone();
+        current.canon_status = status;
+        current.revision += 1;
+        current.updated_at = now_utc();
+        let changed = transaction.execute(
+            "UPDATE canon_rules SET canon_status = ?1, revision = ?2, updated_at = ?3
+             WHERE id = ?4 AND revision = ?5 AND status = 'active'",
+            params![
+                current.canon_status.as_str(),
+                current.revision as i64,
+                current.updated_at,
+                id,
+                expected_revision as i64,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(AppError::Conflict);
+        }
+        let revision = build_revision(
+            &current.project_id,
+            MemoryEntityType::CanonRule,
+            id,
+            current.revision,
+            RevisionOperation::CanonStatus,
+            expected_revision,
+            Some(&existing),
+            &current,
+            "manual",
+            None,
+        )?;
+        RevisionRepository::insert_tx(&transaction, &revision)?;
+        transaction.commit()?;
+        Ok(revision)
+    }
+}
+
+fn ensure_mutable_memory(
+    transaction: &Transaction<'_>,
+    project_id: &str,
+    status: ProjectMemoryStatus,
+    canon_status: CanonStatus,
+    current_revision: u64,
+    expected_revision: u64,
+) -> AppResult<()> {
+    ensure_active_for_canon_status(transaction, project_id, status)?;
+    if canon_status == CanonStatus::LockedCanon {
+        return Err(AppError::LockedCanon);
+    }
+    if current_revision != expected_revision {
+        return Err(AppError::Conflict);
+    }
+    Ok(())
+}
+
+fn ensure_active_for_canon_status(
+    transaction: &Transaction<'_>,
+    project_id: &str,
+    status: ProjectMemoryStatus,
+) -> AppResult<()> {
+    let project_status: String = transaction
+        .query_row(
+            "SELECT status FROM projects WHERE id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(AppError::NotFound)?;
+    if project_status == "archived" {
+        return Err(AppError::ArchivedProject);
+    }
+    if status == ProjectMemoryStatus::Archived {
+        return Err(AppError::ArchivedMemory);
+    }
+    Ok(())
 }
 
 fn map_story_fact(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoryFact> {

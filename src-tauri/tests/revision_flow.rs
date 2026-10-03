@@ -5,27 +5,37 @@ use webnovel_ai_studio_lib::{
     domain::{
         character::{CreateCharacterInput, UpdateCharacterInput, UpdateCharacterStateInput},
         project::CreateProjectInput,
+        project_memory::{CreateStoryFactInput, UpdateStoryFactInput},
         revision::{CanonStatus, MemoryEntityType, RevisionOperation},
     },
     error::AppError,
     projects::{repository::ProjectRepository, service::ProjectService},
+    project_memory::{repository::ProjectMemoryRepository, service::ProjectMemoryService},
     revisions::{repository::RevisionRepository, service::RevisionService},
 };
 
 struct Services {
     projects: ProjectService,
     characters: CharacterService,
+    memory: ProjectMemoryService,
     revisions: RevisionService,
 }
 
 fn services() -> Services {
     let connection = db::in_memory().expect("in-memory database should initialize");
+    let projects_repository = ProjectRepository::new(connection.clone());
+    let characters_repository = CharacterRepository::new(connection.clone());
     Services {
-        projects: ProjectService::new(ProjectRepository::new(connection.clone())),
-        characters: CharacterService::new(CharacterRepository::new(connection.clone())),
+        projects: ProjectService::new(projects_repository.clone()),
+        characters: CharacterService::new(characters_repository.clone()),
+        memory: ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            projects_repository,
+        ),
         revisions: RevisionService::new(
             RevisionRepository::new(connection.clone()),
-            CharacterRepository::new(connection),
+            characters_repository,
+            ProjectMemoryRepository::new(connection),
         ),
     }
 }
@@ -268,5 +278,88 @@ fn archived_character_rejects_restore_and_canon_status_changes() {
             archived.revision,
         ),
         Err(AppError::ArchivedCharacter)
+    );
+}
+
+#[test]
+fn project_memory_restore_and_canon_status_are_forward_revision_safe() {
+    let services = services();
+    let project = services
+        .projects
+        .create(CreateProjectInput {
+            name: "Memory revision story".to_string(),
+            description: None,
+        })
+        .unwrap();
+    let created = services
+        .memory
+        .create_story_fact(
+            project.id,
+            CreateStoryFactInput {
+                title: "Gate".into(),
+                content: "Opens at dawn.".into(),
+            },
+        )
+        .unwrap();
+    let updated = services
+        .memory
+        .update_story_fact(
+            &created.id,
+            UpdateStoryFactInput {
+                title: "Gate".into(),
+                content: "Opens at dusk.".into(),
+            },
+            created.revision,
+        )
+        .unwrap();
+
+    let restored = services
+        .revisions
+        .restore(
+            MemoryEntityType::StoryFact,
+            &created.id,
+            created.revision,
+            updated.revision,
+        )
+        .unwrap();
+    assert_eq!(restored.revision, 3);
+    assert_eq!(restored.operation, RevisionOperation::Restore);
+    assert_eq!(restored.new_value["content"], "Opens at dawn.");
+    assert_eq!(
+        services.memory.get_story_fact(&created.id).unwrap().revision,
+        3
+    );
+    assert_eq!(
+        services
+            .revisions
+            .history(MemoryEntityType::StoryFact, &created.id)
+            .unwrap()
+            .len(),
+        3
+    );
+
+    let locked = services
+        .revisions
+        .set_canon_status(
+            MemoryEntityType::StoryFact,
+            &created.id,
+            CanonStatus::LockedCanon,
+            restored.revision,
+        )
+        .unwrap();
+    assert_eq!(locked.revision, 4);
+    assert_eq!(
+        services
+            .memory
+            .update_story_fact(
+                &created.id,
+                UpdateStoryFactInput {
+                    title: "Blocked".into(),
+                    content: "Blocked".into(),
+                },
+                locked.revision,
+            )
+            .unwrap_err(),
+        AppError::LockedCanon
     );
 }

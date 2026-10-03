@@ -2,6 +2,7 @@ use crate::{
     characters::repository::CharacterRepository,
     domain::{
         character::{Character, CharacterState, UpdateCharacterInput},
+        project_memory::{CanonRule, StoryFact},
         revision::{
             CanonStatus, CreateProposalInput, MemoryEntityType, MemoryProposal, MemoryRevision,
             ProposalStatus, RevisionOperation,
@@ -11,11 +12,13 @@ use crate::{
 };
 
 use super::repository::RevisionRepository;
+use crate::project_memory::repository::ProjectMemoryRepository;
 
 #[derive(Clone)]
 pub struct RevisionService {
     repository: RevisionRepository,
     characters: CharacterRepository,
+    project_memory: ProjectMemoryRepository,
 }
 
 #[derive(Clone)]
@@ -110,10 +113,15 @@ impl ProposalService {
 }
 
 impl RevisionService {
-    pub fn new(repository: RevisionRepository, characters: CharacterRepository) -> Self {
+    pub fn new(
+        repository: RevisionRepository,
+        characters: CharacterRepository,
+        project_memory: ProjectMemoryRepository,
+    ) -> Self {
         Self {
             repository,
             characters,
+            project_memory,
         }
     }
 
@@ -149,7 +157,27 @@ impl RevisionService {
                     .restore_state(&snapshot, expected_revision, target_revision)
             }
             MemoryEntityType::StoryFact | MemoryEntityType::CanonRule => {
-                Err(AppError::InvalidProposal)
+                match entity_type {
+                    MemoryEntityType::StoryFact => {
+                        let snapshot: StoryFact = serde_json::from_value(target.new_value.clone())
+                            .map_err(|_| AppError::InvalidProposal)?;
+                        self.project_memory.restore_story_fact(
+                            &snapshot,
+                            expected_revision,
+                            target_revision,
+                        )
+                    }
+                    MemoryEntityType::CanonRule => {
+                        let snapshot: CanonRule = serde_json::from_value(target.new_value.clone())
+                            .map_err(|_| AppError::InvalidProposal)?;
+                        self.project_memory.restore_canon_rule(
+                            &snapshot,
+                            expected_revision,
+                            target_revision,
+                        )
+                    }
+                    _ => Err(AppError::InvalidProposal),
+                }
             }
         }
     }
@@ -161,7 +189,16 @@ impl RevisionService {
         status: CanonStatus,
         expected_revision: u64,
     ) -> AppResult<MemoryRevision> {
-        self.characters
-            .set_canon_status(entity_type, entity_id, status, expected_revision)
+        match entity_type {
+            MemoryEntityType::Character | MemoryEntityType::CharacterState => self
+                .characters
+                .set_canon_status(entity_type, entity_id, status, expected_revision),
+            MemoryEntityType::StoryFact => self
+                .project_memory
+                .set_story_fact_canon_status(entity_id, status, expected_revision),
+            MemoryEntityType::CanonRule => self
+                .project_memory
+                .set_canon_rule_canon_status(entity_id, status, expected_revision),
+        }
     }
 }
