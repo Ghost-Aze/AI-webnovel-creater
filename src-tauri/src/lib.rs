@@ -10,6 +10,7 @@ pub mod manuscripts;
 pub mod memory_tools;
 pub mod orchestration;
 pub mod projects;
+pub mod project_memory;
 pub mod provider;
 pub mod revisions;
 pub mod users;
