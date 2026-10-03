@@ -6,9 +6,10 @@ use crate::{
         ServiceContextSource,
     },
     conversations::{
-        chat::{
-            ChapterChatService, DeveloperChatSendRequest, DeveloperChatSendResult,
-            DeveloperChatService,
+        chat::{DeveloperChatSendRequest, DeveloperChatSendResult},
+        runtime::{
+            ChatRuntimeLoadRequest, ChatRuntimeService, ChatRuntimeSnapshot, ChatSendRequest,
+            ChatSendResult,
         },
         service::ConversationService,
     },
@@ -17,8 +18,8 @@ use crate::{
         UpdateCharacterStateInput,
     },
     domain::conversation::{
-        AppendMessageInput, Conversation, ConversationListFilter, ConversationMessage,
-        CreateConversationInput,
+        AppendMessageInput, ChatRuntimeSettings, ChatRuntimeSettingsInput, Conversation,
+        ConversationListFilter, ConversationMessage, CreateConversationInput,
     },
     domain::manuscript::{
         Chapter, ChapterListFilter, CreateChapterInput, Manuscript, ManuscriptRevision,
@@ -621,42 +622,49 @@ pub async fn orchestrate(
 }
 
 pub async fn send_developer_chat(
-    service: &ConversationService,
-    registry: &ProviderRegistry,
-    compiler: &ContextCompiler,
-    source: &ServiceContextSource,
+    runtime: &ChatRuntimeService,
     request: DeveloperChatSendRequest,
 ) -> AppResult<DeveloperChatSendResult> {
     report(
         "developer_chat_send",
-        DeveloperChatService
-            .send(service, registry, compiler, source, request)
-            .await,
+        runtime.send_legacy(request, None).await,
     )
 }
 
 pub async fn send_chapter_chat(
-    conversations: &ConversationService,
-    manuscripts: &crate::manuscripts::service::ManuscriptService,
-    registry: &ProviderRegistry,
-    compiler: &ContextCompiler,
-    source: &ServiceContextSource,
+    runtime: &ChatRuntimeService,
     chapter_id: String,
     request: DeveloperChatSendRequest,
 ) -> AppResult<DeveloperChatSendResult> {
     report(
         "chapter_chat_send",
-        ChapterChatService::send(
-            conversations,
-            manuscripts,
-            registry,
-            compiler,
-            source,
-            &chapter_id,
-            request,
-        )
-        .await,
+        runtime.send_legacy(request, Some(chapter_id)).await,
     )
+}
+
+pub fn load_chat_runtime(
+    runtime: &ChatRuntimeService,
+    request: ChatRuntimeLoadRequest,
+) -> AppResult<ChatRuntimeSnapshot> {
+    report("chat_runtime_load", runtime.load(request))
+}
+
+pub fn update_chat_runtime(
+    runtime: &ChatRuntimeService,
+    conversation_id: String,
+    input: ChatRuntimeSettingsInput,
+) -> AppResult<ChatRuntimeSettings> {
+    report(
+        "chat_runtime_update",
+        runtime.update_settings(&conversation_id, input),
+    )
+}
+
+pub async fn send_chat(
+    runtime: &ChatRuntimeService,
+    request: ChatSendRequest,
+) -> AppResult<ChatSendResult> {
+    report("chat_send", runtime.send(request).await)
 }
 
 pub fn propose_memory_tool(
@@ -946,14 +954,7 @@ mod tauri_commands {
         state: State<'_, AppState>,
         request: DeveloperChatSendRequest,
     ) -> AppResult<DeveloperChatSendResult> {
-        super::send_developer_chat(
-            &state.conversation_service,
-            &state.provider_registry,
-            &state.context_compiler,
-            &state.context_source,
-            request,
-        )
-        .await
+        super::send_developer_chat(&state.chat_runtime_service, request).await
     }
 
     #[tauri::command(rename_all = "snake_case")]
@@ -962,16 +963,32 @@ mod tauri_commands {
         chapter_id: String,
         request: DeveloperChatSendRequest,
     ) -> AppResult<DeveloperChatSendResult> {
-        super::send_chapter_chat(
-            &state.conversation_service,
-            &state.manuscript_service,
-            &state.provider_registry,
-            &state.context_compiler,
-            &state.context_source,
-            chapter_id,
-            request,
-        )
-        .await
+        super::send_chapter_chat(&state.chat_runtime_service, chapter_id, request).await
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chat_runtime_load(
+        state: State<'_, AppState>,
+        request: ChatRuntimeLoadRequest,
+    ) -> AppResult<ChatRuntimeSnapshot> {
+        super::load_chat_runtime(&state.chat_runtime_service, request)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub fn chat_runtime_update(
+        state: State<'_, AppState>,
+        conversation_id: String,
+        input: ChatRuntimeSettingsInput,
+    ) -> AppResult<ChatRuntimeSettings> {
+        super::update_chat_runtime(&state.chat_runtime_service, conversation_id, input)
+    }
+
+    #[tauri::command(rename_all = "snake_case")]
+    pub async fn chat_send(
+        state: State<'_, AppState>,
+        request: ChatSendRequest,
+    ) -> AppResult<ChatSendResult> {
+        super::send_chat(&state.chat_runtime_service, request).await
     }
 
     #[tauri::command(rename_all = "snake_case")]

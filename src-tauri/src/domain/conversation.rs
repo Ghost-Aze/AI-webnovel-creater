@@ -115,7 +115,7 @@ impl ChatRuntimeSettings {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChatRuntimeSettingsInput {
     pub assistant_id: String,
     pub provider_id: Option<String>,

@@ -19,6 +19,7 @@ pub mod users;
 pub struct AppState {
     pub character_service: characters::service::CharacterService,
     pub conversation_service: conversations::service::ConversationService,
+    pub chat_runtime_service: conversations::runtime::ChatRuntimeService,
     pub context_compiler: context::ContextCompiler,
     pub context_source: context::ServiceContextSource,
     pub memory_tool_service: memory_tools::MemoryToolService,
@@ -116,9 +117,17 @@ pub fn run() {
             let user_service = users::service::UserService::new(
                 users::repository::UserRepository::new(database.clone()),
             );
+            let chat_runtime_service = conversations::runtime::ChatRuntimeService::new(
+                conversation_service.clone(),
+                manuscript_service.clone(),
+                provider_registry.clone(),
+                context::ContextCompiler::default(),
+                context_source.clone(),
+            );
             app.manage(AppState {
                 character_service,
                 conversation_service,
+                chat_runtime_service,
                 context_compiler: context::ContextCompiler::default(),
                 context_source,
                 memory_tool_service,
@@ -153,6 +162,9 @@ pub fn run() {
             commands::conversation_message_append,
             commands::developer_chat_send,
             commands::chapter_chat_send,
+            commands::chat_runtime_load,
+            commands::chat_runtime_update,
+            commands::chat_send,
             commands::memory_tool_propose,
             commands::chapter_create,
             commands::chapter_list,
