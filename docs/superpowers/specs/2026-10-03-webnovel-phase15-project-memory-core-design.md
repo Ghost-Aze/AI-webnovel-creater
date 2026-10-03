@@ -2,7 +2,8 @@
 
 ## Status
 
-Design approved in conversation; written spec is awaiting user review before
+Design approved in conversation; the written spec has been amended with the
+`archived_memory` error contract and is awaiting user review before
 implementation planning.
 
 ## Goal
@@ -21,6 +22,7 @@ boundary; it does not build the final visual Project Bible screen.
 - typed `StoryFact` and `CanonRule` project entities;
 - idempotent SQLite migration `0009_project_memory.sql`;
 - archive status, canon status and optimistic revision checks;
+- a dedicated `archived_memory` error for archived StoryFact/CanonRule writes;
 - revision history for the new entities through the existing revision boundary;
 - typed AI proposals with explicit user-controlled promotion;
 - typed Tauri and TypeScript CRUD/command contracts;
@@ -113,8 +115,10 @@ The service exposes typed operations equivalent to:
 - `archive_story_fact(id, expected_revision)`;
 - the corresponding five `canon_rule` operations.
 
-Updates, archives and restores reject archived projects, archived entities, locked canon
-and stale revisions with existing safe error codes. The existing
+Updates, archives and restores reject archived projects, archived entities,
+locked canon and stale revisions with safe typed error codes. Archived
+StoryFact and CanonRule writes use the new `archived_memory` code so they are
+not misreported as character or chapter failures. The existing
 `memory_restore` command is extended to `story_fact` and `canon_rule`; it
 creates a new revision from the selected historical snapshot and never moves
 the current revision number backward. A missing record maps to `not_found`;
