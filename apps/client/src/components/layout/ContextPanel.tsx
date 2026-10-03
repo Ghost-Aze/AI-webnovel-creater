@@ -10,7 +10,7 @@ const placeholders = [
 
 export function ContextPanel() {
   return (
-    <aside className="context-panel" aria-label="Project context">
+    <aside className="context-panel workspace-context" aria-label="Project context">
       <div className="panel-heading">
         <p className="eyebrow">Workspace</p>
         <h2>Context</h2>

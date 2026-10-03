@@ -13,7 +13,7 @@ export function AppShell() {
     : "/manuscripts";
 
   return (
-    <div className="app-shell">
+    <div className="app-shell jan-shell">
       <header
         className="mobile-shell-header"
         aria-label="Mobile workspace header"

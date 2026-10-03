@@ -15,6 +15,10 @@ describe("AppShell mobile navigation", () => {
     expect(
       screen.getByRole("banner", { name: "Mobile workspace header" }),
     ).toBeInTheDocument();
+    expect(document.querySelector(".app-shell")).toHaveClass("jan-shell");
+    expect(
+      screen.getByRole("complementary", { name: "Application sidebar" }),
+    ).toHaveClass("primary-rail");
     expect(
       screen.getByRole("navigation", { name: "Mobile navigation" }),
     ).toBeInTheDocument();

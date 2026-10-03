@@ -9,7 +9,7 @@ export function Sidebar() {
     : "/manuscripts";
 
   return (
-    <aside className="sidebar" aria-label="Application sidebar">
+    <aside className="sidebar primary-rail" aria-label="Application sidebar">
       <div className="brand-lockup">
         <span className="brand-mark" aria-hidden="true">
           W

@@ -10,7 +10,7 @@ interface ChatMessageListProps {
 
 export function ChatMessageList({
   messages,
-  className = "",
+  className = "chat-message-scroll",
   onAssistantAction,
   assistantActionLabel = "Use response",
   disabled = false,

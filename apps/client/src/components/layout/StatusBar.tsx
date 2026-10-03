@@ -1,6 +1,6 @@
 export function StatusBar() {
   return (
-    <footer className="status-bar" aria-label="Application status">
+    <footer className="status-bar shell-status" aria-label="Application status">
       <span>
         <i className="status-dot" aria-hidden="true" />
         Local mode

@@ -80,6 +80,9 @@ describe("shared chat surface", () => {
     expect(screen.getByTestId("chat-message-list")).toHaveClass(
       "chat-message-list",
     );
+    expect(screen.getByTestId("chat-message-list")).toHaveClass(
+      "chat-message-scroll",
+    );
     expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 
