@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::provider::ModelRef;
+use crate::provider::{ModelRef, QualityMode};
 
 use super::project::{new_id, now_utc};
 
@@ -90,6 +90,38 @@ pub struct ConversationMessage {
     pub content: String,
     pub model: Option<ModelRef>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChatRuntimeSettings {
+    pub assistant_id: String,
+    pub provider_id: Option<String>,
+    pub model_id: Option<String>,
+    pub quality: QualityMode,
+    pub temperature: Option<f32>,
+    pub updated_at: String,
+}
+
+impl ChatRuntimeSettings {
+    pub fn defaults(updated_at: String) -> Self {
+        Self {
+            assistant_id: "general-assistant".into(),
+            provider_id: None,
+            model_id: None,
+            quality: QualityMode::Balanced,
+            temperature: None,
+            updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ChatRuntimeSettingsInput {
+    pub assistant_id: String,
+    pub provider_id: Option<String>,
+    pub model_id: Option<String>,
+    pub quality: QualityMode,
+    pub temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -1,8 +1,9 @@
 use crate::{
     domain::{
         conversation::{
-            build_conversation, normalize_message_content, AppendMessageInput, Conversation,
-            ConversationListFilter, ConversationMessage, CreateConversationInput,
+            build_conversation, normalize_message_content, AppendMessageInput, ChatRuntimeSettings,
+            ChatRuntimeSettingsInput, Conversation, ConversationListFilter, ConversationMessage,
+            CreateConversationInput,
         },
         project::ProjectStatus,
     },
@@ -50,6 +51,45 @@ impl ConversationService {
         self.repository.get(id)
     }
 
+    pub fn runtime_settings(&self, conversation_id: &str) -> AppResult<ChatRuntimeSettings> {
+        let conversation = self.repository.get(conversation_id)?;
+        Ok(self
+            .repository
+            .get_runtime_settings(conversation_id)?
+            .unwrap_or_else(|| ChatRuntimeSettings::defaults(conversation.updated_at)))
+    }
+
+    pub fn update_runtime_settings(
+        &self,
+        conversation_id: &str,
+        input: ChatRuntimeSettingsInput,
+    ) -> AppResult<ChatRuntimeSettings> {
+        self.repository.get(conversation_id)?;
+        if input.assistant_id.trim().is_empty() {
+            return Err(AppError::Validation {
+                message: "Assistant is required.".into(),
+            });
+        }
+        if input.temperature.is_some_and(|temperature| {
+            !temperature.is_finite() || !(0.0..=2.0).contains(&temperature)
+        }) {
+            return Err(AppError::Validation {
+                message: "Temperature must be between 0 and 2.".into(),
+            });
+        }
+        self.repository.upsert_runtime_settings(
+            conversation_id,
+            ChatRuntimeSettingsInput {
+                assistant_id: input.assistant_id.trim().into(),
+                provider_id: input
+                    .provider_id
+                    .map(|provider_id| provider_id.trim().to_string()),
+                model_id: input.model_id.map(|model_id| model_id.trim().to_string()),
+                ..input
+            },
+        )
+    }
+
     pub fn list(
         &self,
         project_id: &str,
@@ -93,6 +133,7 @@ mod tests {
             project::CreateProjectInput,
         },
         projects::{repository::ProjectRepository, service::ProjectService},
+        provider::QualityMode,
     };
 
     #[test]
@@ -251,6 +292,127 @@ mod tests {
                 })
                 .unwrap_err(),
             AppError::ArchivedChapter
+        );
+    }
+
+    #[test]
+    fn runtime_settings_use_exact_defaults_for_new_conversations() {
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let conversations = ConversationService::new(
+            ConversationRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Runtime defaults".into(),
+                description: None,
+            })
+            .unwrap();
+        let conversation = conversations
+            .create(CreateConversationInput {
+                project_id: project.id,
+                chapter_id: None,
+                kind: ConversationKind::DeveloperChat,
+                title: "Runtime defaults chat".into(),
+            })
+            .unwrap();
+
+        let settings = conversations.runtime_settings(&conversation.id).unwrap();
+        assert_eq!(settings.assistant_id, "general-assistant");
+        assert_eq!(settings.provider_id, None);
+        assert_eq!(settings.model_id, None);
+        assert_eq!(settings.quality, QualityMode::Balanced);
+        assert_eq!(settings.temperature, None);
+        assert!(!settings.updated_at.is_empty());
+    }
+
+    #[test]
+    fn runtime_settings_update_persists_choices_and_validates_input() {
+        let connection = db::in_memory().unwrap();
+        let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
+        let conversations = ConversationService::new(
+            ConversationRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let project = projects
+            .create(CreateProjectInput {
+                name: "Runtime update".into(),
+                description: None,
+            })
+            .unwrap();
+        let conversation = conversations
+            .create(CreateConversationInput {
+                project_id: project.id,
+                chapter_id: None,
+                kind: ConversationKind::DeveloperChat,
+                title: "Runtime update chat".into(),
+            })
+            .unwrap();
+
+        let updated = conversations
+            .update_runtime_settings(
+                &conversation.id,
+                crate::domain::conversation::ChatRuntimeSettingsInput {
+                    assistant_id: "writing-coach".into(),
+                    provider_id: Some("openai".into()),
+                    model_id: Some("gpt-5".into()),
+                    quality: QualityMode::Deep,
+                    temperature: Some(0.7),
+                },
+            )
+            .unwrap();
+        assert_eq!(updated.assistant_id, "writing-coach");
+        assert_eq!(updated.provider_id.as_deref(), Some("openai"));
+        assert_eq!(updated.model_id.as_deref(), Some("gpt-5"));
+        assert_eq!(updated.quality, QualityMode::Deep);
+        assert_eq!(updated.temperature, Some(0.7));
+        assert_eq!(
+            conversations.runtime_settings(&conversation.id).unwrap(),
+            updated
+        );
+
+        assert!(matches!(
+            conversations.update_runtime_settings(
+                &conversation.id,
+                crate::domain::conversation::ChatRuntimeSettingsInput {
+                    assistant_id: "  ".into(),
+                    provider_id: None,
+                    model_id: None,
+                    quality: QualityMode::Balanced,
+                    temperature: None,
+                },
+            ),
+            Err(AppError::Validation { .. })
+        ));
+        assert!(matches!(
+            conversations.update_runtime_settings(
+                &conversation.id,
+                crate::domain::conversation::ChatRuntimeSettingsInput {
+                    assistant_id: "general-assistant".into(),
+                    provider_id: None,
+                    model_id: None,
+                    quality: QualityMode::Balanced,
+                    temperature: Some(2.1),
+                },
+            ),
+            Err(AppError::Validation { .. })
+        ));
+    }
+
+    #[test]
+    fn runtime_settings_missing_conversation_is_not_found() {
+        let connection = db::in_memory().unwrap();
+        let conversations = ConversationService::new(
+            ConversationRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+
+        assert_eq!(
+            conversations
+                .runtime_settings("missing-conversation")
+                .unwrap_err(),
+            AppError::NotFound
         );
     }
 }

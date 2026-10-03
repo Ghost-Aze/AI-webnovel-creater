@@ -53,6 +53,10 @@ const MIGRATIONS: &[Migration] = &[
         name: "0010_provider_settings.sql",
         sql: include_str!("../../migrations/0010_provider_settings.sql"),
     },
+    Migration {
+        name: "0011_conversation_runtime_settings.sql",
+        sql: include_str!("../../migrations/0011_conversation_runtime_settings.sql"),
+    },
 ];
 
 pub type SharedConnection = Arc<Mutex<Connection>>;
@@ -254,6 +258,63 @@ mod tests {
             guard
                 .query_row::<i64, _, _>(
                     "SELECT COUNT(*) FROM _migrations WHERE name = '0009_project_memory.sql'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn conversation_runtime_settings_migration_is_registered_and_idempotent() {
+        let connection = in_memory().expect("in-memory database should initialize");
+        let guard = connection.lock().expect("connection lock should succeed");
+
+        run_migrations(&guard).expect("running migrations twice should succeed");
+
+        guard
+            .execute(
+                "INSERT INTO projects (id, name, description, status, created_at, updated_at)
+                 VALUES ('runtime-project', 'Runtime project', '', 'active',
+                         '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .expect("project should be insertable after runtime migration");
+        guard
+            .execute(
+                "INSERT INTO conversations
+                 (id, project_id, kind, title, created_at, updated_at)
+                 VALUES ('runtime-conversation', 'runtime-project', 'developer_chat',
+                         'Runtime chat', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .expect("conversation should be insertable after runtime migration");
+
+        let columns = guard
+            .prepare("PRAGMA table_info(conversation_runtime_settings)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            columns,
+            vec![
+                "conversation_id",
+                "assistant_id",
+                "provider_id",
+                "model_id",
+                "quality",
+                "temperature",
+                "updated_at",
+            ]
+        );
+        assert_eq!(
+            guard
+                .query_row::<i64, _, _>(
+                    "SELECT COUNT(*) FROM _migrations
+                     WHERE name = '0011_conversation_runtime_settings.sql'",
                     [],
                     |row| row.get(0),
                 )

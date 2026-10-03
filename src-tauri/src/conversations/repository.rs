@@ -4,13 +4,13 @@ use crate::{
     db::SharedConnection,
     domain::{
         conversation::{
-            AppendMessageInput, Conversation, ConversationKind, ConversationListFilter,
-            ConversationMessage, MessageRole,
+            AppendMessageInput, ChatRuntimeSettings, ChatRuntimeSettingsInput, Conversation,
+            ConversationKind, ConversationListFilter, ConversationMessage, MessageRole,
         },
         project::{new_id, now_utc},
     },
     error::{AppError, AppResult},
-    provider::ModelRef,
+    provider::{ModelRef, QualityMode},
 };
 
 #[derive(Clone)]
@@ -53,6 +53,60 @@ impl ConversationRepository {
             )
             .optional()?
             .ok_or(AppError::NotFound)
+    }
+
+    pub fn get_runtime_settings(
+        &self,
+        conversation_id: &str,
+    ) -> AppResult<Option<ChatRuntimeSettings>> {
+        let connection = self.connection.lock()?;
+        connection
+            .query_row(
+                "SELECT assistant_id, provider_id, model_id, quality, temperature, updated_at
+                 FROM conversation_runtime_settings WHERE conversation_id = ?1",
+                [conversation_id],
+                map_runtime_settings,
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub fn upsert_runtime_settings(
+        &self,
+        conversation_id: &str,
+        input: ChatRuntimeSettingsInput,
+    ) -> AppResult<ChatRuntimeSettings> {
+        let connection = self.connection.lock()?;
+        let updated_at = now_utc();
+        connection.execute(
+            "INSERT INTO conversation_runtime_settings
+             (conversation_id, assistant_id, provider_id, model_id, quality, temperature, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(conversation_id) DO UPDATE SET
+                assistant_id = excluded.assistant_id,
+                provider_id = excluded.provider_id,
+                model_id = excluded.model_id,
+                quality = excluded.quality,
+                temperature = excluded.temperature,
+                updated_at = excluded.updated_at",
+            rusqlite::params![
+                conversation_id,
+                input.assistant_id,
+                input.provider_id,
+                input.model_id,
+                quality_as_str(input.quality),
+                input.temperature,
+                updated_at,
+            ],
+        )?;
+        connection
+            .query_row(
+                "SELECT assistant_id, provider_id, model_id, quality, temperature, updated_at
+                 FROM conversation_runtime_settings WHERE conversation_id = ?1",
+                [conversation_id],
+                map_runtime_settings,
+            )
+            .map_err(Into::into)
     }
 
     pub fn list(
@@ -225,6 +279,36 @@ fn map_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<ConversationMessage>
         model,
         created_at: row.get(7)?,
     })
+}
+
+fn map_runtime_settings(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChatRuntimeSettings> {
+    let quality: String = row.get(3)?;
+    let quality = parse_quality(&quality)?;
+    Ok(ChatRuntimeSettings {
+        assistant_id: row.get(0)?,
+        provider_id: row.get(1)?,
+        model_id: row.get(2)?,
+        quality,
+        temperature: row.get(4)?,
+        updated_at: row.get(5)?,
+    })
+}
+
+fn quality_as_str(quality: QualityMode) -> &'static str {
+    match quality {
+        QualityMode::Fast => "fast",
+        QualityMode::Balanced => "balanced",
+        QualityMode::Deep => "deep",
+    }
+}
+
+fn parse_quality(value: &str) -> rusqlite::Result<QualityMode> {
+    match value {
+        "fast" => Ok(QualityMode::Fast),
+        "balanced" => Ok(QualityMode::Balanced),
+        "deep" => Ok(QualityMode::Deep),
+        _ => Err(enum_error(value)),
+    }
 }
 
 fn enum_error(value: &str) -> rusqlite::Error {
