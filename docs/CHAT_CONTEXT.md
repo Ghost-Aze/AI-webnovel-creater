@@ -1,93 +1,61 @@
 # Development chat context
 
-This file preserves the implementation context from the Codex session that
-produced the current working tree. It is a handoff record, not canonical
+This is a handoff record for the current implementation. It is not canonical
 product data or a transcript of private conversation.
 
-## User priorities and boundaries
+## User goal
 
-- Work remains on `phase13/implementation`; no implementation work is merged
-  into `main`.
-- Backend and core behavior are completed before a later visual redesign.
-- Chapter Chat, Developer Chat and Manuscripts must use the provider-independent
-  Rust boundaries and explicit canonical writes.
-- AI output cannot silently mutate canonical memory or manuscript content.
-- Authentication, cloud sync, collaboration, semantic retrieval, automatic
-  memory extraction, project preference overrides, export and a visual
-  settings redesign remain deferred until separately approved.
+Make Developer Chat, Chapter Chat and Settings feel like Jan while keeping a
+provider-independent runtime foundation and the project's local-first policy.
 
-## Implemented during this session
+## Approved boundaries
 
-- Added functional Developer Chat and Manuscripts routes and panels, typed
-  command wrappers, responsive shell updates and regression tests.
-- Added explicit project edit/open/delete actions with a confirmation dialog,
-  a cascading `project_delete` command, and a project-scoped second sidebar
-  navigation for Overview, Developer Chat and Manuscripts.
-- Added provider settings lifecycle controls: edit metadata without re-entering
-  an existing key, test a connection through the selected model, remove a
-  provider, and persist non-secret settings in SQLite while keeping API keys
-  in the platform secure store.
-- Hardened Chapter Chat and manuscript proposal behavior for archived chapters
-  and archived projects.
-- Hardened character revision, restore, canon-status and proposal promotion
-  transactions with project/character status checks and conflict guards.
-- Added Phase 14 local user profile and global writing-preferences foundation:
-  - migration `0008_create_user_profile_preferences.sql`;
-  - singleton `local_user` profile and preferences rows with deterministic
-    defaults;
-  - typed Rust `UserProfile` and `UserPreferences` domain models;
-  - repository/service validation, SQLite boolean mapping and optimistic
-    revision updates;
-  - Tauri commands `user_profile_get`, `user_profile_update`,
-    `user_preferences_get` and `user_preferences_update`;
-  - TypeScript contracts and command wrappers;
-  - migration, normalization, conflict, storage and command-boundary tests.
-- Added the approved Phase 14 design and implementation plan under
-  `docs/superpowers/`.
-- Updated the README and architecture/development context documents with the
-  local-only Phase 14 boundary.
-- Added Jan-inspired client surfaces for the provider workspace and Developer /
-  Chapter Chat. Provider settings now use data-driven provider descriptors,
-  secure API-key-only editing, connection testing, model profiles and chat
-  runtime controls for assistant, provider, model and quality selection.
-- Added typed provider failure classification and retry-safe chat state. Chat
-  errors preserve the draft, distinguish credential/endpoint failures from
-  retryable provider failures and keep retry attempts from appending duplicate
-  user turns.
-- Inspected the Jan open-source reference implementation. The relevant design
-  patterns are `ChatInput` plus `DropdownModelProvider`, a secondary
-  `SettingsMenu` provider rail, provider detail/model discovery through
-  `/models`, and a separate scrollable conversation region with a bottom-pinned
-  composer. These are reference patterns only; Jan source is not copied into
-  this repository.
+- Work on `phase13/implementation`; do not merge into `main`.
+- Keep SQLite, routing, context compilation, credentials and canonical write
+  policy behind Rust services and repositories.
+- Chat output must not silently write memory, characters, canon or manuscript
+  content. Chapter revisions require an explicit proposal and promotion flow.
+- Defer local inference, Hub, MCP, tools, agents, attachments, semantic
+  retrieval, automatic memory extraction, sync, collaboration and export.
 
-## Approved design decisions
+## Implemented in this session
 
-- The local profile uses the stable opaque key `local_user`.
-- Default profile: display name `Writer`, language `en`.
-- Default writing preferences: `third_person`, `limited`, chapter length
-  `2000`, scene length `600`, dialogue density `40`, prose level `standard`,
-  pacing `balanced`, repetition prevention enabled.
-- Profile and preference writes require `expected_revision`; stale writes
-  return `conflict` and do not partially change a row.
-- Missing singleton rows map to the safe `storage` error.
+- Added conversation runtime settings with deterministic defaults:
+  `general-assistant`, automatic provider/model routing, `balanced` quality and
+  no temperature override.
+- Added `ChatRuntimeService` plus typed Tauri load, update and send commands.
+  Provider/model validation and archived project/chapter rejection happen
+  before provider execution or message mutation.
+- Added TypeScript runtime contracts, commands and a pure reducer. Retry keeps
+  the draft and merges messages by conversation sequence so a user turn is not
+  duplicated.
+- Added the shared chat workspace with conversation creation/selection,
+  selected model display, advanced assistant/provider/model/quality controls,
+  retry-safe error handling and archived read-only behavior.
+- Converted Developer Chat and Chapter Chat to workspace adapters. Chapter
+  proposal creation remains outside the shared runtime boundary.
+- Added the Jan-style settings shell. `Model Providers` is functional;
+  Chat, Appearance and Storage are visible as deferred sections. `/settings`
+  redirects to `/settings/providers`.
+- Applied the dark responsive application shell with a primary rail,
+  project navigation, context panel, mobile navigation and bottom-pinned
+  chat composer.
 
 ## Verification evidence
 
-- Frontend: typecheck, ESLint, production build and 92 Vitest tests pass.
-- Rust: `cargo fmt --all -- --check`, clippy, 113 unit tests plus the project
-  integration suites pass.
-- Windows native smoke test starts `webnovel-ai-studio`; Vite at
-  `http://localhost:1420/` returns HTTP 200.
-- Repository-wide `npm run format:check` still reports pre-existing
-  formatting drift in 34 client files; those unrelated changes were not
-  mass-formatted.
+- Frontend typecheck, ESLint, 21 Vitest files with 102 passing tests and the
+  production build pass.
+- Rust formatting and clippy pass. The full Rust suite passes with 117 unit
+  tests and 39 integration tests.
+- Native `tauri:dev` compiled and launched in the Windows checkout. The
+  localhost browser preview rendered the settings shell; browser-only
+  `invoke` calls show the expected unavailable-command fallback because they
+  are outside the native Tauri runtime.
+- The repository-wide Prettier check retains known baseline drift and is not
+  used as a source gate for unrelated files.
 
-## Current handoff
+## Generated-file boundary
 
-The working tree contains the Phase 13 functional work and the previously
-recorded local Phase 14/15 foundations. No further phase expansion is approved
-in this handoff. The Jan inspection is a reference for the next explicitly
-approved UI iteration; it does not authorize new scope. Before pushing,
-generated `src-tauri/gen/` and `src-tauri/icons/` output must remain untracked,
-and API keys must stay outside Git.
+Keep `src-tauri/gen/` and `src-tauri/icons/` untracked when they are produced
+by local Tauri startup. Do not commit API keys, credentials, SQLite runtime
+databases, `node_modules`, Rust targets or generated Tauri build output.

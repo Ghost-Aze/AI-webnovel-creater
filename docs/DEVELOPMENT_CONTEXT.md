@@ -1,140 +1,84 @@
 # Development context
 
-This file preserves the project decisions that would otherwise live only in a
-Codex conversation. A local developer or a new assistant should read it before
-continuing work.
+This file preserves the project decisions needed to continue work without
+reconstructing the Codex session. Read it with the approved phase documents
+before changing the repository.
 
 ## Product boundary
 
 Webnovel AI Studio is a provider-independent, local-first workspace for
-planning and writing long-form fiction. Canonical project state belongs to the
-application database, not to an AI provider conversation. AI output must remain
-reviewable and must not silently mutate canonical memory or manuscript text.
+planning and writing long-form fiction. Canonical project state belongs to
+the application database. Chat output remains reviewable and cannot silently
+mutate project memory, characters or manuscript text.
 
-The product specification is in `docs/PRODUCT_SPEC.md`. Phase design and plan
-documents are under `docs/superpowers/`.
+The current approved work is the Jan-inspired chat and settings foundation on
+`phase13/implementation`. The design and implementation plan are under
+`docs/superpowers/`.
 
-## Implementation state
+## Current implementation state
 
-- Current approved branch: `phase13/implementation`
-- Latest Phase 15 implementation commit: `215c846 fix: validate project memory proposals`
-- Phase 12 base commit: `12fa759`
-- Phase 11 base commit: `76552e6`
-- `main` has not been merged into by implementation work.
-- Phase 0 through Phase 14 are implemented slices. Phase 14 adds the local
-  user profile and global writing-preferences foundation; it does not add
-  authentication, sync or a settings UI.
-- Project list actions now expose explicit edit navigation and confirmed hard
-  deletion. `project_delete` cascades project-owned SQLite records; archive
-  remains the non-destructive alternative.
+- Branch: `phase13/implementation`; implementation work has not been merged
+  into `main`.
+- Migration `0011_conversation_runtime_settings.sql` stores non-secret
+  assistant, provider, model, quality and temperature choices per conversation.
+- Rust `ChatRuntimeService` owns runtime snapshot loading, setting validation,
+  provider/model selection checks, archived-scope guards and chat sends.
+- Tauri exposes typed `chat_runtime_load`, `chat_runtime_update` and
+  `chat_send` commands. Existing developer/chapter commands remain adapters.
+- React uses one reducer-driven runtime for Developer Chat and Chapter Chat.
+  Conversations, retry-safe drafts, runtime selection and chapter proposal
+  actions remain typed at the command boundary.
+- The shared workspace has a conversation sidebar, model selector, runtime
+  menu, scrollable message region and bottom composer. Archived scopes are
+  read-only.
+- `/settings` redirects to `/settings/providers`. The settings shell exposes
+  `Model Providers` as its first functional section, with provider discovery,
+  model lists, secure-store status, connection test and remove/update flows.
+- The application shell now has a compact dark rail, project navigation,
+  context panel, responsive mobile navigation and Jan-inspired chat surfaces.
 
-## Phase 13 decisions
+SQL remains behind Rust repositories and provider credentials remain in the
+existing secure credential boundary. Runtime settings and messages contain no
+API keys.
 
-- `Conversation.chapter_id` is optional in storage and required for
-  `chapter_chat`; the service verifies that the chapter belongs to the same
-  project.
-- `chapter_chat_send` reuses the provider-independent orchestrator. It passes
-  bounded conversation history and the current manuscript as transient working
-  memory. It never writes the canonical manuscript automatically.
-- Developer and Chapter Chat requests use the dedicated `developer_chat` model
-  task, which executes one provider step per message instead of the multi-step
-  `main_writing` orchestration plan. This keeps chat responsive while retaining
-  the same routing and context boundaries.
-- `ManuscriptProposal` stores a complete proposed body with `draft`, `accepted`
-  or `rejected` status and a `base_revision`.
-- Promotion is explicit. One SQLite transaction checks the chapter/project and
-  manuscript revision, writes the next `manuscript_revisions` snapshot and
-  accepts the proposal. A stale base returns `conflict`.
-- The React editor exposes Chapter Chat plus review controls. Proposal content
-  is currently a complete plain-text body; line-level diff/merge is deferred.
-- Developer Chat and Chapter Chat now share runtime controls for assistant
-  presets, quality mode and optional provider/model selection. These controls
-  use `model_list` and the existing typed chat request; no provider credential
-  is copied into chat state. With no configured models, automatic routing stays
-  available and the UI links to provider setup.
-- Provider setup now supports editing provider metadata, explicit connection
-  tests and removal. Migration `0010_provider_settings.sql` persists provider
-  descriptors, endpoints, credential IDs and model profiles without storing
-  API keys. Native startup restores only providers whose credentials are
-  available in the platform secure store; missing credentials remain editable
-  but inactive until the user supplies a new key.
+## Deferred scope
 
-## Phase 14 decisions
-
-- `user_profile` and `user_preferences` are singleton local SQLite records with
-  the stable `local_user` key and deterministic migration defaults.
-- User profile and writing-preference updates normalize typed inputs and use
-  optimistic revisions inside one SQLite transaction. Stale writes return
-  `conflict` without partial changes.
-- `UserService` owns the local identity boundary. Tauri and TypeScript expose
-  typed profile/preferences commands while SQL, SQLite booleans and storage
-  errors remain inside Rust.
-- Authentication, cloud sync, multi-user access, project-level overrides,
-  project-level provider overrides and a visual settings redesign remain
-  deferred.
-
-## Phase 15 decisions
-
-- `StoryFact` and `CanonRule` are typed, project-scoped SQLite entities created
-  by migration `0009_project_memory.sql`. New records start at revision 1 with
-  active/canon status; archive is idempotent and archived rows remain readable.
-- Rust owns project-memory SQL, normalization, revision history and policy.
-  Writes require an active project and reject archived memory, locked canon and
-  stale revisions with safe typed errors (`archived_memory`, `locked_canon` or
-  `conflict`).
-- AI create/update proposals for these entities remain drafts. Promotion writes
-  the canonical row, shared revision and accepted proposal atomically; create
-  promotion records its generated entity id. AI providers never write canonical
-  project memory directly.
-- Context compilation accepts only an explicit ordered
-  `project_memory_refs` list. It loads selected facts/rules through the typed
-  source, preserves request order and applies the existing budget policy. It
-  never scans or extracts project memory automatically.
-- Native AppState owns one shared `ProjectMemoryService`; Tauri and TypeScript
-  expose typed `story_fact_*` and `canon_rule_*` CRUD commands. No Project Bible
-  React screen or design revision is part of this phase.
+Local model download, Hub, MCP, tools, agents, attachments, semantic
+retrieval, automatic memory extraction, cloud sync, collaboration and export
+are deferred until a separately approved phase. The Chat event union defines
+an event boundary, but the current provider path still returns completed chat
+results rather than claiming streaming support.
 
 ## Verification baseline
 
-The current Phase 15 baseline is:
+The final verification results for this implementation are recorded in
+`docs/CHAT_CONTEXT.md` and the SDD ledger at
+`.superpowers/sdd/2026-10-03-jan-style-chat-runtime/progress.md`: frontend
+typecheck, lint, 102 Vitest tests and production build pass; Rust formatting,
+clippy, 117 unit tests and 39 integration tests pass.
 
-- Rust: 108 unit tests plus 34 integration tests pass.
-- Rust `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
-  pass.
-- Frontend: 75 Vitest tests across 17 files pass.
-- Frontend typecheck, ESLint and production build pass. The repository-wide
-  Prettier check still reports existing formatting drift across the client and
-  is not part of the required source verification gate.
-- Windows native smoke test starts `webnovel-ai-studio` successfully and the
-  Vite endpoint returns HTTP 200.
-- Native `cargo check --features tauri-app` passes in the Windows development
-  environment. Android builds still require verification on a machine with the
-  Android SDK and NDK prerequisites.
+The repository-wide Prettier check still reports pre-existing client format
+drift; unrelated files are not mass-formatted. Generated `src-tauri/gen/`,
+`src-tauri/icons/`, Rust targets, SQLite runtime data, credentials and
+`node_modules` stay outside commits.
 
 ## Local continuation
 
-Clone the approved branch rather than copying the cloud filesystem:
+Use `npm.cmd` in PowerShell when execution policy blocks `npm.ps1`:
 
 ```powershell
-git clone --branch phase13/implementation --single-branch `
-  https://github.com/Ghost-Aze/AI-webnovel-creater.git `
-  AI-webnovel-creater
-cd AI-webnovel-creater
 npm.cmd ci
+npm.cmd run dev
+npm.cmd run tauri:dev
 ```
 
-Use `npm.cmd` in PowerShell when execution policy blocks `npm.ps1`. Run
-`npm.cmd run dev` for the Vite client or `npm.cmd run tauri:dev` for the native
-desktop shell after installing Rust, Visual Studio C++ Build Tools, Windows SDK
-and WebView2. API keys and platform credentials are intentionally not copied by
-Git; configure them locally through the provider settings boundary.
+Configure provider credentials locally through the provider settings boundary;
+never commit them.
 
 ## Continuation protocol
 
 1. Confirm the branch and read this file plus the relevant phase documents.
-2. Keep each change inside the approved phase unless the user explicitly
-   approves a new phase.
-3. Run the required checks after source changes and report results.
-4. Preserve local changes; do not use destructive resets or merge into `main`.
-5. Before a later phase, ask the user for approval and write a new
-   design/plan. Keep Phase 14 local-only until a later scope is approved.
+2. Keep changes inside the approved phase unless a new phase is explicitly
+   approved and has its own design and plan.
+3. Run the required checks after source changes and record the result.
+4. Preserve local changes and do not merge implementation work into `main`.
