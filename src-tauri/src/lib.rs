@@ -90,8 +90,11 @@ pub fn run() {
                 project_memory::repository::ProjectMemoryRepository::new(database.clone()),
                 projects::repository::ProjectRepository::new(database.clone()),
             );
-            let context_source =
-                context::ServiceContextSource::new(service.clone(), character_service.clone());
+            let context_source = context::ServiceContextSource::new(
+                service.clone(),
+                character_service.clone(),
+                project_memory_service.clone(),
+            );
             let provider_runtime =
                 provider::ProviderRuntime::new(provider::application_credential_store());
             let provider_registry = provider_runtime.registry();

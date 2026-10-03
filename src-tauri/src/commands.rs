@@ -1447,9 +1447,13 @@ mod tests {
         let connection = db::in_memory().unwrap();
         let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
         let characters = crate::characters::service::CharacterService::new(
-            crate::characters::repository::CharacterRepository::new(connection),
+            crate::characters::repository::CharacterRepository::new(connection.clone()),
         );
-        let source = crate::context::ServiceContextSource::new(projects, characters);
+        let memory = ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let source = crate::context::ServiceContextSource::new(projects, characters, memory);
         let request = ContextCompileRequest {
             project_id: "project".into(),
             task: ContextTask::DeveloperChat,
@@ -1458,6 +1462,7 @@ mod tests {
                 model_id: "model".into(),
             },
             system_instructions: "Instructions".into(),
+            project_memory_refs: Vec::new(),
             character_ids: Vec::new(),
             include_character_states: false,
             working_memory: Vec::new(),
@@ -1537,7 +1542,7 @@ mod tests {
         let connection = db::in_memory().unwrap();
         let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
         let characters = crate::characters::service::CharacterService::new(
-            crate::characters::repository::CharacterRepository::new(connection),
+            crate::characters::repository::CharacterRepository::new(connection.clone()),
         );
         let project = projects
             .create(CreateProjectInput {
@@ -1545,7 +1550,11 @@ mod tests {
                 description: Some("A premise".into()),
             })
             .unwrap();
-        let source = ServiceContextSource::new(projects, characters);
+        let memory = ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            ProjectRepository::new(connection),
+        );
+        let source = ServiceContextSource::new(projects, characters, memory);
         let result = block_on(orchestrate(
             &registry,
             &ContextCompiler::default(),

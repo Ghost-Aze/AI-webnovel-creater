@@ -195,6 +195,7 @@ fn context_request(
             request.system_instructions.trim(),
             step.agent.label()
         ),
+        project_memory_refs: Vec::new(),
         character_ids: request.character_ids.clone(),
         include_character_states: request.include_character_states,
         working_memory,
@@ -412,6 +413,7 @@ mod tests {
     use crate::context::ContextSource;
     use crate::domain::character::{Character, CharacterState};
     use crate::domain::project::{Project, ProjectStatus};
+    use crate::domain::project_memory::{CanonRule, StoryFact};
     use crate::provider::{MockProvider, ModelProfile, ProviderDescriptor};
 
     struct Source {
@@ -428,6 +430,14 @@ mod tests {
         }
 
         fn load_character_state(&self, _character_id: &str) -> AppResult<CharacterState> {
+            Err(AppError::NotFound)
+        }
+
+        fn load_story_fact(&self, _project_id: &str, _entity_id: &str) -> AppResult<StoryFact> {
+            Err(AppError::NotFound)
+        }
+
+        fn load_canon_rule(&self, _project_id: &str, _entity_id: &str) -> AppResult<CanonRule> {
             Err(AppError::NotFound)
         }
     }

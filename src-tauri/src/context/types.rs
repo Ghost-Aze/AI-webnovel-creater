@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::provider::ModelRef;
+use crate::{domain::revision::MemoryEntityType, provider::ModelRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -20,6 +20,8 @@ pub enum ContextTask {
 pub enum ContextBlockKind {
     System,
     Project,
+    StoryFact,
+    CanonRule,
     Character,
     CharacterState,
     WorkingMemory,
@@ -30,6 +32,12 @@ pub struct WorkingMemoryBlock {
     pub id: String,
     pub label: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectMemoryRef {
+    pub entity_type: MemoryEntityType,
+    pub entity_id: String,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +52,8 @@ pub struct ContextCompileRequest {
     pub task: ContextTask,
     pub model: ModelRef,
     pub system_instructions: String,
+    #[serde(default)]
+    pub project_memory_refs: Vec<ProjectMemoryRef>,
     pub character_ids: Vec<String>,
     pub include_character_states: bool,
     pub working_memory: Vec<WorkingMemoryBlock>,

@@ -189,6 +189,7 @@ mod tests {
             project::CreateProjectInput,
         },
         manuscripts::{repository::ManuscriptRepository, service::ManuscriptService},
+        project_memory::{repository::ProjectMemoryRepository, service::ProjectMemoryService},
         projects::{repository::ProjectRepository, service::ProjectService},
         provider::{MockProvider, ModelProfile, ProviderDescriptor},
     };
@@ -234,6 +235,10 @@ mod tests {
         let connection = db::in_memory().unwrap();
         let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
         let characters = CharacterService::new(CharacterRepository::new(connection.clone()));
+        let memory = ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            ProjectRepository::new(connection.clone()),
+        );
         let conversations = ConversationService::new(
             super::super::repository::ConversationRepository::new(connection.clone()),
             ProjectRepository::new(connection),
@@ -263,7 +268,7 @@ mod tests {
         registry.register(provider).unwrap();
         (
             conversations,
-            ServiceContextSource::new(projects, characters),
+            ServiceContextSource::new(projects, characters, memory),
             registry,
             conversation.id,
         )
@@ -326,6 +331,10 @@ mod tests {
         let connection = db::in_memory().unwrap();
         let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
         let characters = CharacterService::new(CharacterRepository::new(connection.clone()));
+        let memory = ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            ProjectRepository::new(connection.clone()),
+        );
         let project = projects
             .create(CreateProjectInput {
                 name: "Chapter Chat project".into(),
@@ -380,7 +389,7 @@ mod tests {
         ));
         let registry = ProviderRegistry::new();
         registry.register(provider).unwrap();
-        let source = ServiceContextSource::new(projects, characters);
+        let source = ServiceContextSource::new(projects, characters, memory);
         let result = block_on(ChapterChatService::send(
             &conversations,
             &manuscripts,
@@ -407,6 +416,10 @@ mod tests {
         let connection = db::in_memory().unwrap();
         let projects = ProjectService::new(ProjectRepository::new(connection.clone()));
         let characters = CharacterService::new(CharacterRepository::new(connection.clone()));
+        let memory = ProjectMemoryService::new(
+            ProjectMemoryRepository::new(connection.clone()),
+            ProjectRepository::new(connection.clone()),
+        );
         let manuscripts = ManuscriptService::new(
             ManuscriptRepository::new(connection.clone()),
             ProjectRepository::new(connection.clone()),
@@ -443,7 +456,7 @@ mod tests {
             .archive_chapter(&chapter.id, chapter.revision)
             .unwrap();
 
-        let source = ServiceContextSource::new(projects, characters);
+        let source = ServiceContextSource::new(projects, characters, memory);
         let error = block_on(ChapterChatService::send(
             &conversations,
             &manuscripts,

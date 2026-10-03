@@ -1,5 +1,7 @@
 use crate::domain::character::{Character, CharacterState};
 use crate::domain::project::Project;
+use crate::domain::project_memory::{CanonRule, StoryFact};
+use crate::domain::revision::MemoryEntityType;
 use crate::error::{AppError, AppResult};
 use crate::provider::ModelProfile;
 
@@ -12,6 +14,8 @@ pub trait ContextSource: Sync {
     fn load_project(&self, project_id: &str) -> AppResult<Project>;
     fn load_character(&self, project_id: &str, character_id: &str) -> AppResult<Character>;
     fn load_character_state(&self, character_id: &str) -> AppResult<CharacterState>;
+    fn load_story_fact(&self, project_id: &str, entity_id: &str) -> AppResult<StoryFact>;
+    fn load_canon_rule(&self, project_id: &str, entity_id: &str) -> AppResult<CanonRule>;
 }
 
 pub trait TokenEstimator {
@@ -104,6 +108,41 @@ impl<E: TokenEstimator> ContextCompiler<E> {
             ),
             priority: 80,
         });
+
+        for memory_ref in request.project_memory_refs {
+            match memory_ref.entity_type {
+                MemoryEntityType::StoryFact => {
+                    let fact =
+                        source.load_story_fact(&request.project_id, &memory_ref.entity_id)?;
+                    candidates.push(Candidate {
+                        kind: ContextBlockKind::StoryFact,
+                        source_id: Some(fact.id.clone()),
+                        content: format!("Story fact: {}\nContent: {}", fact.title, fact.content),
+                        priority: 70,
+                    });
+                }
+                MemoryEntityType::CanonRule => {
+                    let rule =
+                        source.load_canon_rule(&request.project_id, &memory_ref.entity_id)?;
+                    candidates.push(Candidate {
+                        kind: ContextBlockKind::CanonRule,
+                        source_id: Some(rule.id.clone()),
+                        content: format!(
+                            "Canon rule: {}\nRule: {}\nScope: {}",
+                            rule.title, rule.rule, rule.scope
+                        ),
+                        priority: 70,
+                    });
+                }
+                _ => {
+                    return Err(AppError::Validation {
+                        message:
+                            "Context project memory references must be story facts or canon rules."
+                                .into(),
+                    });
+                }
+            }
+        }
 
         let mut selected_states = Vec::new();
         for character_id in request.character_ids {
@@ -232,6 +271,7 @@ mod tests {
     use crate::context::*;
     use crate::domain::character::{CharacterStatus, UpdateCharacterStateInput};
     use crate::domain::project::ProjectStatus;
+    use crate::domain::project_memory::{CanonRule, ProjectMemoryStatus, StoryFact};
     use crate::domain::revision::CanonStatus;
     use crate::provider::{ModelProfile, ModelRef, ProviderCapabilities};
 
@@ -263,6 +303,35 @@ mod tests {
                 }
             }
             Ok(self.state.clone())
+        }
+
+        fn load_story_fact(&self, _project_id: &str, _entity_id: &str) -> AppResult<StoryFact> {
+            Ok(StoryFact {
+                id: "fact-1".into(),
+                project_id: self.project.id.clone(),
+                title: "Dawn fact".into(),
+                content: "The bells ring.".into(),
+                status: ProjectMemoryStatus::Active,
+                canon_status: CanonStatus::Canon,
+                revision: 1,
+                created_at: "2026-01-01T00:00:00Z".into(),
+                updated_at: "2026-01-01T00:00:00Z".into(),
+            })
+        }
+
+        fn load_canon_rule(&self, _project_id: &str, _entity_id: &str) -> AppResult<CanonRule> {
+            Ok(CanonRule {
+                id: "rule-1".into(),
+                project_id: self.project.id.clone(),
+                title: "Time rule".into(),
+                rule: "Days pass normally.".into(),
+                scope: "World".into(),
+                status: ProjectMemoryStatus::Active,
+                canon_status: CanonStatus::Canon,
+                revision: 1,
+                created_at: "2026-01-01T00:00:00Z".into(),
+                updated_at: "2026-01-01T00:00:00Z".into(),
+            })
         }
     }
 
@@ -343,6 +412,7 @@ mod tests {
                 model_id: "mock-small".into(),
             },
             system_instructions: "Write clearly".into(),
+            project_memory_refs: Vec::new(),
             character_ids: vec!["character-1".into()],
             include_character_states: true,
             working_memory: Vec::new(),
