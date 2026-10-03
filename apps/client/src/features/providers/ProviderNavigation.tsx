@@ -18,12 +18,12 @@ export function ProviderNavigation({
   return (
     <aside className="provider-settings-sidebar">
       <div className="provider-settings-sidebar-heading">
-        <p className="eyebrow">Settings</p>
-        <strong>Runtime</strong>
+        <p className="eyebrow">Catalog</p>
+        <strong>Model Providers</strong>
       </div>
       <nav
         className="provider-settings-navigation"
-        aria-label="Provider settings navigation"
+        aria-label="Provider catalog navigation"
       >
         <a href="#provider-details" aria-current="page">
           Provider details

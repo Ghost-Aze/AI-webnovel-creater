@@ -223,10 +223,11 @@ export function ProviderSettingsPage() {
     <section className="page-content providers-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Runtime connections</p>
-          <h1>Providers</h1>
+          <p className="eyebrow">Settings / Model Providers</p>
+          <h1>Model Providers</h1>
           <p className="page-lede">
-            Choose a provider, enter its API key, and select the model from chat.
+            Connect a provider, review its available models, and choose routes
+            from chat.
           </p>
         </div>
         <span className="page-header-note">Preset configurations</span>

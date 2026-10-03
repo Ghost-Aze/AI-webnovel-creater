@@ -28,6 +28,10 @@ export function AppRoutes() {
           path="/projects/:projectId/chapters/:chapterId"
           element={<ChapterEditorPage />}
         />
+        <Route
+          path="/settings"
+          element={<Navigate to="/settings/providers" replace />}
+        />
         <Route path="/settings/providers" element={<ProviderSettingsPage />} />
         <Route path="*" element={<Navigate to="/projects" replace />} />
       </Route>

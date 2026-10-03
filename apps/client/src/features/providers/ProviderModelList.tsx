@@ -6,10 +6,14 @@ interface ProviderModelListProps {
 
 export function ProviderModelList({ models }: ProviderModelListProps) {
   return (
-    <section className="provider-model-list" id="models" aria-labelledby="provider-models-heading">
+    <section
+      className="provider-model-list"
+      id="models"
+      aria-labelledby="provider-models-heading"
+    >
       <div className="provider-panel-heading">
         <div>
-          <p className="eyebrow">Available routes</p>
+          <p className="eyebrow">Available routes for this provider</p>
           <h2 id="provider-models-heading">Models</h2>
         </div>
         <span className="provider-count">{models.length}</span>

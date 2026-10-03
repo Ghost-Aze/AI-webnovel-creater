@@ -97,6 +97,9 @@ describe("ProviderSettingsPage", () => {
 
     expect(await screen.findByTestId("provider-catalog")).toBeInTheDocument();
     expect(
+      screen.getByRole("link", { name: "Model Providers" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
       screen.getByText(
         "Session-only credential storage is active on this build.",
       ),
