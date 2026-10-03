@@ -121,7 +121,7 @@ fn project_memory_create_proposals_promote_atomically_and_record_id() {
     let rule_proposal = services
         .proposals
         .create(CreateProposalInput {
-            project_id: project.id,
+            project_id: project.id.clone(),
             entity_type: MemoryEntityType::CanonRule,
             entity_id: None,
             operation: RevisionOperation::Create,
@@ -207,11 +207,38 @@ fn project_memory_update_proposals_validate_payload_and_stale_base() {
 
     assert_eq!(
         services.proposals.create(CreateProposalInput {
-            project_id: project.id,
+            project_id: project.id.clone(),
             entity_type: MemoryEntityType::CanonRule,
-            entity_id: Some(fact.id),
+            entity_id: Some(fact.id.clone()),
             operation: RevisionOperation::Create,
             payload: serde_json::json!({"title": "bad"}),
+            base_revision: 0,
+            actor_type: ActorType::Ai,
+            actor_id: None,
+        }),
+        Err(AppError::InvalidProposal)
+    );
+
+    assert_eq!(
+        services.proposals.create(CreateProposalInput {
+            project_id: project.id.clone(),
+            entity_type: MemoryEntityType::StoryFact,
+            entity_id: Some(fact.id.clone()),
+            operation: RevisionOperation::Update,
+            payload: serde_json::json!({"title": "Fact", "content": "stale"}),
+            base_revision: 99,
+            actor_type: ActorType::Ai,
+            actor_id: None,
+        }),
+        Err(AppError::Conflict)
+    );
+    assert_eq!(
+        services.proposals.create(CreateProposalInput {
+            project_id: project.id,
+            entity_type: MemoryEntityType::StoryFact,
+            entity_id: None,
+            operation: RevisionOperation::Create,
+            payload: serde_json::json!({"title": " ", "content": "blank"}),
             base_revision: 0,
             actor_type: ActorType::Ai,
             actor_id: None,

@@ -317,16 +317,31 @@ fn validate_story_fact_proposal(
         input.base_revision,
     ) {
         (RevisionOperation::Create, None, 0) => {
-            serde_json::from_value::<CreateStoryFactInput>(input.payload.clone())
+            let payload = serde_json::from_value::<CreateStoryFactInput>(input.payload.clone())
                 .map_err(|_| AppError::InvalidProposal)?;
+            crate::domain::project_memory::build_story_fact(input.project_id.clone(), payload)
+                .map(|_| ())
+                .map_err(|error| match error {
+                    AppError::Validation { .. } => AppError::InvalidProposal,
+                    other => other,
+                })?;
         }
         (RevisionOperation::Update, Some(entity_id), base_revision) if base_revision > 0 => {
             let fact = project_memory.get_story_fact(entity_id)?;
             if fact.project_id != input.project_id {
                 return Err(AppError::NotFound);
             }
-            serde_json::from_value::<UpdateStoryFactInput>(input.payload.clone())
+            if fact.revision != base_revision {
+                return Err(AppError::Conflict);
+            }
+            let payload = serde_json::from_value::<UpdateStoryFactInput>(input.payload.clone())
                 .map_err(|_| AppError::InvalidProposal)?;
+            crate::domain::project_memory::update_story_fact_fields(payload)
+                .map(|_| ())
+                .map_err(|error| match error {
+                    AppError::Validation { .. } => AppError::InvalidProposal,
+                    other => other,
+                })?;
         }
         _ => return Err(AppError::InvalidProposal),
     }
@@ -343,16 +358,31 @@ fn validate_canon_rule_proposal(
         input.base_revision,
     ) {
         (RevisionOperation::Create, None, 0) => {
-            serde_json::from_value::<CreateCanonRuleInput>(input.payload.clone())
+            let payload = serde_json::from_value::<CreateCanonRuleInput>(input.payload.clone())
                 .map_err(|_| AppError::InvalidProposal)?;
+            crate::domain::project_memory::build_canon_rule(input.project_id.clone(), payload)
+                .map(|_| ())
+                .map_err(|error| match error {
+                    AppError::Validation { .. } => AppError::InvalidProposal,
+                    other => other,
+                })?;
         }
         (RevisionOperation::Update, Some(entity_id), base_revision) if base_revision > 0 => {
             let rule = project_memory.get_canon_rule(entity_id)?;
             if rule.project_id != input.project_id {
                 return Err(AppError::NotFound);
             }
-            serde_json::from_value::<UpdateCanonRuleInput>(input.payload.clone())
+            if rule.revision != base_revision {
+                return Err(AppError::Conflict);
+            }
+            let payload = serde_json::from_value::<UpdateCanonRuleInput>(input.payload.clone())
                 .map_err(|_| AppError::InvalidProposal)?;
+            crate::domain::project_memory::update_canon_rule_fields(payload)
+                .map(|_| ())
+                .map_err(|error| match error {
+                    AppError::Validation { .. } => AppError::InvalidProposal,
+                    other => other,
+                })?;
         }
         _ => return Err(AppError::InvalidProposal),
     }
