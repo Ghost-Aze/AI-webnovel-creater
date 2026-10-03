@@ -2,18 +2,18 @@ import { userEvent } from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const listConversationsMock = vi.hoisted(() => vi.fn());
-const listMessagesMock = vi.hoisted(() => vi.fn());
-const chapterChatSendMock = vi.hoisted(() => vi.fn());
+const loadChatRuntimeMock = vi.hoisted(() => vi.fn());
+const createConversationMock = vi.hoisted(() => vi.fn());
+const updateChatRuntimeMock = vi.hoisted(() => vi.fn());
+const sendChatMock = vi.hoisted(() => vi.fn());
 const createProposalMock = vi.hoisted(() => vi.fn());
-const listModelsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
-  listConversations: listConversationsMock,
-  listConversationMessages: listMessagesMock,
-  chapterChatSend: chapterChatSendMock,
+  loadChatRuntime: loadChatRuntimeMock,
+  createConversation: createConversationMock,
+  updateChatRuntime: updateChatRuntimeMock,
+  sendChat: sendChatMock,
   createManuscriptProposal: createProposalMock,
-  listModels: listModelsMock,
 }));
 
 import { ChapterChatPanel } from "../features/manuscripts/ChapterChatPanel";
@@ -48,34 +48,62 @@ const model = {
   },
 };
 
+const settings = {
+  assistant_id: "general-assistant",
+  provider_id: null,
+  model_id: null,
+  quality: "balanced" as const,
+  temperature: null,
+  updated_at: "2026-10-01T00:00:00Z",
+};
+
+const snapshot = {
+  conversations: [conversation],
+  conversation,
+  messages: [],
+  settings,
+  assistants: [
+    { id: "general-assistant", label: "General Assistant", description: "A balanced assistant." },
+    { id: "world-builder", label: "World Builder", description: "A canon assistant." },
+    { id: "continuity-reviewer", label: "Continuity Reviewer", description: "A continuity assistant." },
+    { id: "writing-coach", label: "Writing Coach", description: "A prose assistant." },
+  ],
+  models: [],
+};
+
+const result = {
+  conversation,
+  user_message: {
+    id: "message-user",
+    conversation_id: conversation.id,
+    sequence: 1,
+    role: "user" as const,
+    content: "Make it tenser.",
+    model: null,
+    created_at: "2026-10-01T00:00:00Z",
+  },
+  assistant_message: {
+    id: "message-assistant",
+    conversation_id: conversation.id,
+    sequence: 2,
+    role: "assistant" as const,
+    content: "Use shorter sentences.",
+    model: null,
+    created_at: "2026-10-01T00:00:00Z",
+  },
+  orchestration: { steps: [] },
+};
+
 describe("ChapterChatPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    listConversationsMock.mockResolvedValue([conversation]);
-    listMessagesMock.mockResolvedValue([]);
-    listModelsMock.mockResolvedValue([]);
-    chapterChatSendMock.mockResolvedValue({
-      conversation,
-      user_message: {
-        id: "message-user",
-        conversation_id: conversation.id,
-        sequence: 1,
-        role: "user",
-        content: "Make it tenser.",
-        model: null,
-        created_at: "2026-10-01T00:00:00Z",
-      },
-      assistant_message: {
-        id: "message-assistant",
-        conversation_id: conversation.id,
-        sequence: 2,
-        role: "assistant",
-        content: "Use shorter sentences.",
-        model: null,
-        created_at: "2026-10-01T00:00:00Z",
-      },
-      orchestration: { steps: [] },
-    });
+    loadChatRuntimeMock.mockResolvedValue(snapshot);
+    createConversationMock.mockResolvedValue(conversation);
+    updateChatRuntimeMock.mockImplementation(async (_conversationId, input) => ({
+      ...input,
+      updated_at: settings.updated_at,
+    }));
+    sendChatMock.mockResolvedValue(result);
     createProposalMock.mockResolvedValue({ id: "proposal-1" });
   });
 
@@ -96,8 +124,7 @@ describe("ChapterChatPanel", () => {
     await user.type(input, "Make it tenser.");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() =>
-      expect(chapterChatSendMock).toHaveBeenCalledWith(
-        "chapter-1",
+      expect(sendChatMock).toHaveBeenCalledWith(
         expect.objectContaining({
           conversation_id: "conversation-1",
           task: "developer_chat",
@@ -127,9 +154,9 @@ describe("ChapterChatPanel", () => {
 
   it("can retry a failed chat load", async () => {
     const user = userEvent.setup();
-    listConversationsMock
+    loadChatRuntimeMock
       .mockRejectedValueOnce({ code: "storage" })
-      .mockResolvedValueOnce([conversation]);
+      .mockResolvedValueOnce(snapshot);
 
     render(
       <ChapterChatPanel
@@ -144,12 +171,12 @@ describe("ChapterChatPanel", () => {
     expect(
       await screen.findByRole("textbox", { name: "Chapter Chat message" }),
     ).toBeInTheDocument();
-    expect(listConversationsMock).toHaveBeenCalledTimes(2);
+    expect(loadChatRuntimeMock).toHaveBeenCalledTimes(2);
   });
 
   it("sends selected chapter assistant settings without changing proposal flow", async () => {
     const user = userEvent.setup();
-    listModelsMock.mockResolvedValueOnce([model]);
+    loadChatRuntimeMock.mockResolvedValueOnce({ ...snapshot, models: [model] });
     render(
       <ChapterChatPanel
         projectId="project-1"
@@ -158,10 +185,8 @@ describe("ChapterChatPanel", () => {
       />,
     );
 
-    await user.selectOptions(
-      await screen.findByLabelText("Assistant"),
-      "continuity-reviewer",
-    );
+    await user.click(await screen.findByRole("button", { name: "Runtime settings" }));
+    await user.selectOptions(screen.getByLabelText("Assistant"), "continuity-reviewer");
     await user.selectOptions(screen.getByLabelText("Provider"), "openrouter");
     await user.selectOptions(
       screen.getByLabelText("Model"),
@@ -175,17 +200,15 @@ describe("ChapterChatPanel", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
-      expect(chapterChatSendMock).toHaveBeenCalledWith(
-        "chapter-1",
+      expect(sendChatMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          quality: "fast",
-          preferred_model: {
+          runtime: expect.objectContaining({
+            assistant_id: "continuity-reviewer",
+            quality: "fast",
             provider_id: "openrouter",
             model_id: "deepseek/deepseek-v4-flash-0731",
-          },
-          system_instructions: expect.stringContaining(
-            "continuity reviewer",
-          ),
+          }),
+          system_instructions: expect.stringContaining("continuity reviewer"),
         }),
       ),
     );
@@ -193,7 +216,9 @@ describe("ChapterChatPanel", () => {
 
   it("preserves the draft and retries a chapter provider failure", async () => {
     const user = userEvent.setup();
-    chapterChatSendMock.mockRejectedValueOnce({ code: "provider_timeout" });
+    sendChatMock
+      .mockRejectedValueOnce({ code: "provider_timeout" })
+      .mockResolvedValueOnce(result);
     render(
       <ChapterChatPanel
         projectId="project-1"
@@ -213,8 +238,7 @@ describe("ChapterChatPanel", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     await waitFor(() =>
-      expect(chapterChatSendMock).toHaveBeenCalledWith(
-        "chapter-1",
+      expect(sendChatMock).toHaveBeenCalledWith(
         expect.objectContaining({
           message: "Retry this chapter request.",
           retry_attempt: true,

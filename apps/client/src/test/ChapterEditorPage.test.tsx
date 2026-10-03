@@ -14,6 +14,9 @@ const createConversationMock = vi.hoisted(() => vi.fn());
 const listConversationMessagesMock = vi.hoisted(() => vi.fn());
 const listProposalsMock = vi.hoisted(() => vi.fn());
 const chapterChatSendMock = vi.hoisted(() => vi.fn());
+const loadChatRuntimeMock = vi.hoisted(() => vi.fn());
+const sendChatMock = vi.hoisted(() => vi.fn());
+const updateChatRuntimeMock = vi.hoisted(() => vi.fn());
 const createProposalMock = vi.hoisted(() => vi.fn());
 const promoteProposalMock = vi.hoisted(() => vi.fn());
 const rejectProposalMock = vi.hoisted(() => vi.fn());
@@ -31,6 +34,9 @@ vi.mock("../lib/commands", () => ({
   listConversationMessages: listConversationMessagesMock,
   listManuscriptProposals: listProposalsMock,
   chapterChatSend: chapterChatSendMock,
+  loadChatRuntime: loadChatRuntimeMock,
+  sendChat: sendChatMock,
+  updateChatRuntime: updateChatRuntimeMock,
   createManuscriptProposal: createProposalMock,
   promoteManuscriptProposal: promoteProposalMock,
   rejectManuscriptProposal: rejectProposalMock,
@@ -118,6 +124,47 @@ describe("ChapterEditorPage", () => {
     listConversationMessagesMock.mockResolvedValue([]);
     listProposalsMock.mockResolvedValue([]);
     listModelsMock.mockResolvedValue([]);
+    loadChatRuntimeMock.mockResolvedValue({
+      conversations: [
+        {
+          id: "conversation-1",
+          project_id: "project-1",
+          chapter_id: "chapter-1",
+          kind: "chapter_chat",
+          title: "Chapter Chat",
+          created_at: "2026-10-01T00:00:00Z",
+          updated_at: "2026-10-01T00:00:00Z",
+        },
+      ],
+      conversation: {
+        id: "conversation-1",
+        project_id: "project-1",
+        chapter_id: "chapter-1",
+        kind: "chapter_chat",
+        title: "Chapter Chat",
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-01T00:00:00Z",
+      },
+      messages: [],
+      settings: {
+        assistant_id: "general-assistant",
+        provider_id: null,
+        model_id: null,
+        quality: "balanced",
+        temperature: null,
+        updated_at: "2026-10-01T00:00:00Z",
+      },
+      assistants: [],
+      models: [],
+    });
+    updateChatRuntimeMock.mockResolvedValue({
+      assistant_id: "general-assistant",
+      provider_id: null,
+      model_id: null,
+      quality: "balanced",
+      temperature: null,
+      updated_at: "2026-10-01T00:00:00Z",
+    });
   });
 
   it("loads prose, saves a new revision and exposes restore", async () => {

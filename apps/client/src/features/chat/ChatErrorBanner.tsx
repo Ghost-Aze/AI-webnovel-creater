@@ -1,7 +1,7 @@
 import type { CommandError } from "../../lib/command-error";
 
 interface ChatErrorBannerProps {
-  error: CommandError;
+  error: Pick<CommandError, "message" | "retryable" | "action">;
   onRetry?: () => void;
   onOpenProviderSettings?: () => void;
 }

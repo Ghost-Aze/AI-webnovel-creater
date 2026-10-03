@@ -2,18 +2,16 @@ import { userEvent } from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const listConversationsMock = vi.hoisted(() => vi.fn());
+const loadChatRuntimeMock = vi.hoisted(() => vi.fn());
 const createConversationMock = vi.hoisted(() => vi.fn());
-const listMessagesMock = vi.hoisted(() => vi.fn());
-const sendDeveloperChatMock = vi.hoisted(() => vi.fn());
-const listModelsMock = vi.hoisted(() => vi.fn());
+const updateChatRuntimeMock = vi.hoisted(() => vi.fn());
+const sendChatMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/commands", () => ({
-  listConversations: listConversationsMock,
+  loadChatRuntime: loadChatRuntimeMock,
   createConversation: createConversationMock,
-  listConversationMessages: listMessagesMock,
-  sendDeveloperChat: sendDeveloperChatMock,
-  listModels: listModelsMock,
+  updateChatRuntime: updateChatRuntimeMock,
+  sendChat: sendChatMock,
 }));
 
 import { DeveloperChatPanel } from "../features/chat/DeveloperChatPanel";
@@ -48,35 +46,62 @@ const model = {
   },
 };
 
+const settings = {
+  assistant_id: "general-assistant",
+  provider_id: null,
+  model_id: null,
+  quality: "balanced" as const,
+  temperature: null,
+  updated_at: "2026-10-01T00:00:00Z",
+};
+
+const snapshot = {
+  conversations: [conversation],
+  conversation,
+  messages: [],
+  settings,
+  assistants: [
+    { id: "general-assistant", label: "General Assistant", description: "A balanced assistant." },
+    { id: "world-builder", label: "World Builder", description: "A canon assistant." },
+    { id: "continuity-reviewer", label: "Continuity Reviewer", description: "A continuity assistant." },
+    { id: "writing-coach", label: "Writing Coach", description: "A prose assistant." },
+  ],
+  models: [],
+};
+
+const result = {
+  conversation,
+  user_message: {
+    id: "message-user",
+    conversation_id: conversation.id,
+    sequence: 1,
+    role: "user" as const,
+    content: "Make the opening more tense.",
+    model: null,
+    created_at: "2026-10-01T00:00:00Z",
+  },
+  assistant_message: {
+    id: "message-assistant",
+    conversation_id: conversation.id,
+    sequence: 2,
+    role: "assistant" as const,
+    content: "Start with a decision under pressure.",
+    model: null,
+    created_at: "2026-10-01T00:00:00Z",
+  },
+  orchestration: { steps: [] },
+};
+
 describe("DeveloperChatPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    listConversationsMock.mockResolvedValue([conversation]);
+    loadChatRuntimeMock.mockResolvedValue(snapshot);
     createConversationMock.mockResolvedValue(conversation);
-    listMessagesMock.mockResolvedValue([]);
-    listModelsMock.mockResolvedValue([]);
-    sendDeveloperChatMock.mockResolvedValue({
-      conversation,
-      user_message: {
-        id: "message-user",
-        conversation_id: conversation.id,
-        sequence: 1,
-        role: "user",
-        content: "Make the opening more tense.",
-        model: null,
-        created_at: "2026-10-01T00:00:00Z",
-      },
-      assistant_message: {
-        id: "message-assistant",
-        conversation_id: conversation.id,
-        sequence: 2,
-        role: "assistant",
-        content: "Start with a decision under pressure.",
-        model: null,
-        created_at: "2026-10-01T00:00:00Z",
-      },
-      orchestration: { steps: [] },
-    });
+    updateChatRuntimeMock.mockImplementation(async (_conversationId, input) => ({
+      ...input,
+      updated_at: settings.updated_at,
+    }));
+    sendChatMock.mockResolvedValue(result);
   });
 
   it("loads the project chat and sends a durable developer message", async () => {
@@ -90,7 +115,7 @@ describe("DeveloperChatPanel", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
-      expect(sendDeveloperChatMock).toHaveBeenCalledWith(
+      expect(sendChatMock).toHaveBeenCalledWith(
         expect.objectContaining({
           conversation_id: conversation.id,
           task: "developer_chat",
@@ -105,7 +130,11 @@ describe("DeveloperChatPanel", () => {
   });
 
   it("creates the project's main chat when none exists", async () => {
-    listConversationsMock.mockResolvedValueOnce([]);
+    loadChatRuntimeMock.mockResolvedValueOnce({
+      ...snapshot,
+      conversations: [],
+      conversation: null,
+    });
     const user = userEvent.setup();
     render(<DeveloperChatPanel projectId="project-1" />);
 
@@ -123,13 +152,11 @@ describe("DeveloperChatPanel", () => {
 
   it("sends the selected assistant, quality and model to the runtime boundary", async () => {
     const user = userEvent.setup();
-    listModelsMock.mockResolvedValueOnce([model]);
+    loadChatRuntimeMock.mockResolvedValueOnce({ ...snapshot, models: [model] });
     render(<DeveloperChatPanel projectId="project-1" />);
 
-    await user.selectOptions(
-      await screen.findByLabelText("Assistant"),
-      "continuity-reviewer",
-    );
+    await user.click(await screen.findByRole("button", { name: "Runtime settings" }));
+    await user.selectOptions(screen.getByLabelText("Assistant"), "continuity-reviewer");
     await user.selectOptions(screen.getByLabelText("Provider"), "openrouter");
     await user.selectOptions(
       screen.getByLabelText("Model"),
@@ -143,16 +170,15 @@ describe("DeveloperChatPanel", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
-      expect(sendDeveloperChatMock).toHaveBeenCalledWith(
+      expect(sendChatMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          quality: "deep",
-          preferred_model: {
+          runtime: expect.objectContaining({
+            assistant_id: "continuity-reviewer",
+            quality: "deep",
             provider_id: "openrouter",
             model_id: "deepseek/deepseek-v4-flash-0731",
-          },
-          system_instructions: expect.stringContaining(
-            "continuity reviewer",
-          ),
+          }),
+          system_instructions: expect.stringContaining("continuity reviewer"),
         }),
       ),
     );
@@ -160,9 +186,9 @@ describe("DeveloperChatPanel", () => {
 
   it("can retry a failed chat load", async () => {
     const user = userEvent.setup();
-    listConversationsMock
+    loadChatRuntimeMock
       .mockRejectedValueOnce({ code: "storage" })
-      .mockResolvedValueOnce([conversation]);
+      .mockResolvedValueOnce(snapshot);
 
     render(<DeveloperChatPanel projectId="project-1" />);
 
@@ -173,12 +199,14 @@ describe("DeveloperChatPanel", () => {
     expect(
       await screen.findByRole("textbox", { name: "Developer Chat message" }),
     ).toBeInTheDocument();
-    expect(listConversationsMock).toHaveBeenCalledTimes(2);
+    expect(loadChatRuntimeMock).toHaveBeenCalledTimes(2);
   });
 
   it("preserves the draft and retries a rate-limited attempt without duplication", async () => {
     const user = userEvent.setup();
-    sendDeveloperChatMock.mockRejectedValueOnce({ code: "provider_rate_limited" });
+    sendChatMock
+      .mockRejectedValueOnce({ code: "provider_rate_limited" })
+      .mockResolvedValueOnce(result);
     render(<DeveloperChatPanel projectId="project-1" />);
 
     const input = await screen.findByRole("textbox", {
@@ -194,7 +222,7 @@ describe("DeveloperChatPanel", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     await waitFor(() =>
-      expect(sendDeveloperChatMock).toHaveBeenCalledWith(
+      expect(sendChatMock).toHaveBeenCalledWith(
         expect.objectContaining({
           message: "Try again later.",
           retry_attempt: true,
@@ -205,9 +233,7 @@ describe("DeveloperChatPanel", () => {
 
   it("links unauthorized chat failures to provider settings", async () => {
     const user = userEvent.setup();
-    sendDeveloperChatMock.mockRejectedValueOnce({
-      code: "provider_unauthorized",
-    });
+    sendChatMock.mockRejectedValueOnce({ code: "provider_unauthorized" });
     render(<DeveloperChatPanel projectId="project-1" />);
 
     const input = await screen.findByRole("textbox", {

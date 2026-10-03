@@ -41,6 +41,7 @@ export interface ChatRuntimeState {
 
 export type ChatRuntimeAction =
   | { type: "load_succeeded"; snapshot: ChatRuntimeSnapshot }
+  | { type: "load_failed"; error: unknown }
   | { type: "draft_changed"; value: string }
   | { type: "settings_changed"; settings: ChatRuntimeSettings }
   | { type: "settings_confirmed"; settings: ChatRuntimeSettings }
@@ -77,6 +78,12 @@ export function reduceChatRuntime(
       return {
         ...createChatRuntimeState(action.snapshot, state.draft),
         last_request: state.last_request,
+      };
+    case "load_failed":
+      return {
+        ...state,
+        status: "error",
+        error: safeError(action.error),
       };
     case "draft_changed":
       return { ...state, draft: action.value };

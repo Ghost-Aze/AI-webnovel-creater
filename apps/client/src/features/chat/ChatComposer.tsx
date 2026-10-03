@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { ChatRuntimeControls, type ChatAssistantPreset } from "./ChatRuntimeControls";
 import type { ModelRef, QualityMode } from "../../types/provider";
 
@@ -7,13 +9,14 @@ export interface ChatComposerProps {
   onSubmit: () => void;
   isSending: boolean;
   disabled?: boolean;
-  assistants: readonly ChatAssistantPreset[];
-  selectedAssistantId: string;
-  onAssistantChange: (assistantId: string) => void;
-  selectedModel: ModelRef | null;
-  onModelChange: (model: ModelRef | null) => void;
-  quality: QualityMode;
-  onQualityChange: (quality: QualityMode) => void;
+  assistants?: readonly ChatAssistantPreset[];
+  selectedAssistantId?: string;
+  onAssistantChange?: (assistantId: string) => void;
+  selectedModel?: ModelRef | null;
+  onModelChange?: (model: ModelRef | null) => void;
+  quality?: QualityMode;
+  onQualityChange?: (quality: QualityMode) => void;
+  runtimeMenu?: ReactNode;
   placeholder?: string;
   messageLabel?: string;
 }
@@ -31,6 +34,7 @@ export function ChatComposer({
   onModelChange,
   quality,
   onQualityChange,
+  runtimeMenu,
   placeholder = "Ask me anything…",
   messageLabel = "Chat message",
 }: ChatComposerProps) {
@@ -52,16 +56,24 @@ export function ChatComposer({
         disabled={isDisabled}
         placeholder={placeholder}
       />
-      <ChatRuntimeControls
-        assistants={assistants}
-        selectedAssistantId={selectedAssistantId}
-        onAssistantChange={onAssistantChange}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-        quality={quality}
-        onQualityChange={onQualityChange}
-        disabled={isDisabled}
-      />
+      {runtimeMenu ?? (assistants &&
+        selectedAssistantId !== undefined &&
+        onAssistantChange &&
+        selectedModel !== undefined &&
+        onModelChange &&
+        quality &&
+        onQualityChange ? (
+        <ChatRuntimeControls
+          assistants={assistants}
+          selectedAssistantId={selectedAssistantId}
+          onAssistantChange={onAssistantChange}
+          selectedModel={selectedModel}
+          onModelChange={onModelChange}
+          quality={quality}
+          onQualityChange={onQualityChange}
+          disabled={isDisabled}
+        />
+      ) : null)}
       <div className="chat-composer-actions">
         <span className="chat-composer-hint">Model and quality are adjustable per message.</span>
         <button
